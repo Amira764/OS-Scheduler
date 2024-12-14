@@ -7,14 +7,27 @@ int main(int agrc, char *argv[])
 {
     initClk();
 
+    // remainingtime = atoi(argv[1]);
+    // printf("%d",atoi(argv[0]));
+    // int prevClk = getClk();
+    // printf("%d", prevClk);
+
     //TODO The process needs to get the remaining time from somewhere
     //remainingtime = ??;
+
     while (remainingtime > 0)
     {
         // remainingtime = ??;
+
+        // if(getClk() == prevClk)
+        // {
+        //     continue;
+        // }
+        // remainingtime--;
+        // prevClk = getClk();
     }
 
     destroyClk(false);
 
-    return 0;
+    // return 0;
 }

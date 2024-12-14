@@ -5,11 +5,10 @@
 void clearResources(int);
 
 #define buffersize 100
-int msg_id;
 struct msgbuff
 {
     long mtype;
-    char mtext[256];
+    Process mtext;
 };
 
 int main(int argc, char *argv[])
@@ -21,6 +20,7 @@ int main(int argc, char *argv[])
     int Nprocesses = 0;
     ProcessQueue Processes;
     init_ProcessQueue(&Processes);
+
     char buffer[buffersize];
     FILE *InputFile;
     InputFile = fopen("processes.txt", "r");
@@ -85,10 +85,8 @@ int main(int argc, char *argv[])
     // TODO Generation Main Loop
     // 5. Create a data structure for processes and provide it with its parameters.
     struct msgbuff message;
-    key_t key_id;
-    int send_val;
-    key_id = ftok("keyfile", 70);
-    msg_id = msgget(key_id, 0666 | IPC_CREAT); // message queue to send processes to scheduler file
+    key_t key_id = ftok("keyfile", 70);
+    int qid = msgget(key_id, 0666 | IPC_CREAT); // message queue to send processes to scheduler file
 
     // 6. Send the information to the scheduler at the appropriate time.
     while (!isEmpty_ProcessQueue(&Processes))
@@ -97,9 +95,9 @@ int main(int argc, char *argv[])
         Process process_in_turn = peek_ProcessQueue(&Processes);
         if (x == process_in_turn.arrivaltime)
         {
-            dequeue_ProcessQueue(&Processes);
+            process_in_turn = dequeue_ProcessQueue(&Processes);
             memcpy(message.mtext, &process_in_turn, sizeof(Process));
-            msgsnd(msg_id, &message, sizeof(message.mtext), IPC_NOWAIT);
+            msgsnd(qid, &message, sizeof(message.mtext), IPC_NOWAIT);
         }
     }
 
