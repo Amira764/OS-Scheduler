@@ -33,8 +33,11 @@ int main(int argc, char *argv[])
 
     //TODO: implement the scheduler.
     init_Scheduler(argc, argv);
-    key_t key_id = ftok("keyfile", 70);
-    int qid = msgget(key_id, 0666 | IPC_CREAT); // message queue to receive processes from process_generator file
+    key_t key_id1 = ftok("keyfile", 70);
+    int qid_generator = msgget(key_id1, 0666 | IPC_CREAT); // message queue to receive processes from process_generator file
+
+    key_t key_id2 = ftok("keyfile", 60);
+    int qid_process = msgget(key_id2, 0666 | IPC_CREAT); //message queue to receive updates from process.c
     ProcessQueue ready_list;
     init_ProcessQueue(&ready_list); // Temporary queue for new processes
 
@@ -53,7 +56,7 @@ int main(int argc, char *argv[])
             break; // Exit scheduler loop
         }
 
-        handle_process_reception(qid, &ready_list); //lw 3yzeen ta5doha gowa el functions bt3tko it's up to u
+        handle_process_reception(qid_generator, &ready_list); //lw 3yzeen ta5doha gowa el functions bt3tko it's up to u
         // el fn msh bt.fork el process hya bs bt7ottaha fl ready list ana sybalko ento el forking
         // el PCB howa struct Process, matnsoosh t.update it
 
@@ -85,7 +88,8 @@ int main(int argc, char *argv[])
     // Clean up and exit
     fclose(schedulerLog);
     fclose(perfLog);
-    msgctl(qid, IPC_RMID, NULL); // Remove message queue
+    msgctl(qid_generator, IPC_RMID, NULL); // Remove message queue
+    msgctl(qid_process, IPC_RMID, NULL); // Remove message queue
 
     //TODO: upon termination release the clock resources.
     // what are clk resources ?
