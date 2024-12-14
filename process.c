@@ -65,5 +65,5 @@ int main(int argc, char *argv[])
 
     // Clean up and exit
     destroyClk(false);
-    return 0;
+    exit(0); //Terminate Myself
 }

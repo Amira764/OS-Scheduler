@@ -172,9 +172,9 @@ void handle_process_completion(int qid_process, float *allWTA, int *allWT)
         if (message.mtext.remainingtime > 0) 
         {
             // Preempted process, re-enqueue
-            current_process->remainingtime = message.mtext.remainingtime;
+            current_process->remainingtime = message.mtext.remainingtime; //remaining time passed via IPC
             current_process->state = 1; // Waiting state
-            enqueue_ProcessQueue(&ready_list, *current_process);
+            enqueue_ProcessQueue(&ready_list, *current_process); //return to ready list
             log_event("stopped", current_process); // Log stopped event
         }
         else 
