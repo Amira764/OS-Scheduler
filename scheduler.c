@@ -23,10 +23,10 @@ ProcessQueue ready_list;      // Ready queue to store processes
 // Function Prototypes
 void init_Scheduler(int argc, char *argv[]);
 void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list);
-void calculate_performance(float *allWTA, int handled_processes_count, int totalRunTime);
+void calculate_performance(float *allWTA, int *allWT, int handled_processes_count, int totalRunTime);
 void log_event(const char *event, Process *process);
 void fork_and_run(Process *process, int runtime);
-void handle_process_completion(int qid_process);
+void handle_process_completion(int qid_process, float *allWTA, int *allWT);
 void handle_preemption(Process *current_process, int qid_process);
 void handle_HPF();
 void handle_SJF();
@@ -51,7 +51,8 @@ int main(int argc, char *argv[])
     init_ProcessQueue(&ready_list); // Initialize ready queue
 
     int start_time = getClk(); 
-    float allWTA[1000] = {0}; // Weighted Turnaround Times
+    float *allWTA = calloc(Nprocesses, sizeof(float)); // Weighted Turnaround Times (dynamic)
+    int *allWT = calloc(Nprocesses, sizeof(int));      // Waiting Times (dynamic)
 
     // Main scheduler loop
     while (1) 
@@ -61,7 +62,7 @@ int main(int argc, char *argv[])
         {
             int end_time = getClk();
             int totalRunTime = end_time - start_time;
-            calculate_performance(allWTA, Nprocesses, totalRunTime); // Compute metrics
+            calculate_performance(allWTA, allWT, handled_processes_count, totalRunTime); // Compute metrics
             break; // Exit scheduler loop
         }
 
@@ -89,10 +90,12 @@ int main(int argc, char *argv[])
         }
 
         // Handle process completion or preemption
-        handle_process_completion(qid_process);
+        handle_process_completion(qid_process, allWTA, allWT);
     }
 
     // Clean up and exit
+    free(allWTA);
+    free(allWT);
     fclose(schedulerLog);
     fclose(perfLog);
     msgctl(qid_generator, IPC_RMID, NULL);
@@ -159,7 +162,7 @@ void fork_and_run(Process *process, int runtime)
 }
 
 // Handle process completion or preemption
-void handle_process_completion(int qid_process)
+void handle_process_completion(int qid_process, float *allWTA, int *allWT)
 {
     struct msgbuff message;
     while (msgrcv(qid_process, &message, sizeof(message), 0, IPC_NOWAIT) != -1)
@@ -180,6 +183,12 @@ void handle_process_completion(int qid_process)
             current_process->finishtime = getClk();
             current_process->TA = current_process->finishtime - current_process->arrivaltime;
             current_process->WTA = (float)current_process->TA / current_process->runtime;
+            current_process->waitingtime = current_process->TA - current_process->runtime;
+
+            // Populate allWTA and allWT arrays using process ID as the index
+            allWTA[current_process->id] = current_process->WTA;
+            allWT[current_process->id] = current_process->waitingtime;
+
             log_event("finished", current_process); // Log finished event
             remove_from_PCB(current_process->pid); // Remove from PCB table
             handled_processes_count++;
@@ -204,15 +213,21 @@ void log_event(const char *event, Process *process)
 }
 
 // Calculate performance metrics
-void calculate_performance(float *allWTA, int handled_processes_count, int totalRunTime)
+void calculate_performance(float *allWTA, int *allWT, int handled_processes_count, int totalRunTime)
 {
     float avgWTA = 0;
+    float avgWT = 0;
     float cpuUtil = ((totalRunTime - idle_time) * 100.0) / totalRunTime;
 
     for (int i = 0; i < handled_processes_count; i++)
+    {
         avgWTA += allWTA[i];
+        avgWT += allWT[i];
+    }
     avgWTA /= handled_processes_count;
+    avgWT /= handled_processes_count;
 
     fprintf(perfLog, "CPU utilization = %.2f%%\n", cpuUtil);
     fprintf(perfLog, "Avg WTA = %.2f\n", avgWTA);
+    fprintf(perfLog, "Avg Waiting Time = %.2f\n", avgWT);
 }
