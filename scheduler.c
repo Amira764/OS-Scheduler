@@ -44,6 +44,15 @@ int main(int argc, char *argv[])
     // Main scheduler loop
     while (1) 
     {
+        // Check if all processes are completed
+        if (Nprocesses == handled_processes_count) 
+        {
+            int end_time = getClk();
+            int totalRunTime = end_time - start_time;
+            calculate_performance(allWTA, Nprocesses, totalRunTime); // Compute metrics
+            break; // Exit scheduler loop
+        }
+
         handle_process_reception(qid, &ready_list); //lw 3yzeen ta5doha gowa el functions bt3tko it's up to u
         // el fn msh bt.fork el process hya bs bt7ottaha fl ready list ana sybalko ento el forking
         // el PCB howa struct Process, matnsoosh t.update it
@@ -66,16 +75,11 @@ int main(int argc, char *argv[])
             default:
                 fprintf(stderr, "Invalid scheduling algorithm\n");
                 exit(EXIT_FAILURE);
-        }
+        } //by here, ready_list is mtzabbata a5er tazabeet
 
-        // Check if all processes are completed
-        if (Nprocesses == handled_processes_count) 
-        {
-            int end_time = getClk();
-            int totalRunTime = end_time - start_time;
-            calculate_performance(allWTA, Nprocesses, totalRunTime); // Compute metrics
-            break; // Exit scheduler loop
-        }
+        //actually fork the process via process.c file
+        //when exit code comes (pid) with finish, delete el pcb entry
+        //momkn tb2a stopped 3ady
     }
 
     // Clean up and exit

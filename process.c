@@ -25,8 +25,12 @@ int main(int agrc, char *argv[])
         // }
         // remainingtime--;
         // prevClk = getClk();
-    }
 
+
+        //check ana el mfrood a.stop wla eh
+    }
+    
+    //send the exit code
     destroyClk(false);
 
     // return 0;
