@@ -4,6 +4,10 @@
 
 void clearResources(int);
 
+int clk_pid;
+int scheduler_pid;
+int qid;
+
 #define buffersize 100
 struct msgbuff
 {
@@ -41,7 +45,6 @@ int main(int argc, char *argv[])
         p.remainingtime = p.runtime;
         enqueue_ProcessQueue(&Processes, p);
         Nprocesses++;
-        printf("%d", Nprocesses);
     }
 
     // 2. Read the chosen scheduling algorithm and its parameters, if there are any from the argument list.
@@ -59,11 +62,11 @@ int main(int argc, char *argv[])
     }
 
     // 3. Initiate and create the scheduler and clock processes.
-    int clk_pid = fork();
+    clk_pid = fork();
     if (clk_pid == 0)
     { execv("clk.out", argv); }
 
-    int scheduler_pid = fork();
+    scheduler_pid = fork();
     if (scheduler_pid == 0)
     {
         char algorithm[12]; // Sufficient for a 32-bit signed integer
@@ -86,7 +89,7 @@ int main(int argc, char *argv[])
     // 5. Create a data structure for processes and provide it with its parameters.
     struct msgbuff message;
     key_t key_id = ftok("keyfile", 70);
-    int qid = msgget(key_id, 0666 | IPC_CREAT); // message queue to send processes to scheduler file
+    qid = msgget(key_id, 0666 | IPC_CREAT); // message queue to send processes to scheduler file
 
     // 6. Send the information to the scheduler at the appropriate time.
     while (!isEmpty_ProcessQueue(&Processes))
@@ -96,8 +99,9 @@ int main(int argc, char *argv[])
         if (x == process_in_turn.arrivaltime)
         {
             process_in_turn = dequeue_ProcessQueue(&Processes);
-            memcpy(message.mtext, &process_in_turn, sizeof(Process));
+            message.mtext = process_in_turn;
             msgsnd(qid, &message, sizeof(message.mtext), IPC_NOWAIT);
+            printf("sending %d", message.mtext.id);
         }
     }
 
@@ -109,8 +113,14 @@ int main(int argc, char *argv[])
     return 0;
 }
 
+ //TODO Clears all resources in case of interruption
 void clearResources(int signum)
 {
-    //TODO Clears all resources in case of interruption
-    msgctl(msg_id, IPC_RMID, NULL);
+    kill(clk_pid, SIGINT);
+    kill(scheduler_pid, SIGINT);
+    msgctl(qid, IPC_RMID, NULL); // Remove message queue
+    destroyClk(true);
+    exit(0);
 }
+
+

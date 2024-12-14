@@ -1,6 +1,8 @@
 #include "headers.h"
 #include "ProcessQueue.h"
+#include "PCB.h"
 #include <string.h>
+#include <sys/wait.h>
 
 struct msgbuff
 {
@@ -9,19 +11,23 @@ struct msgbuff
 };
 
 // Global Variables
-Process *Running_Process;     // Currently running process -> m3rfsh 3yzenha f haga wla la bs sybahalko just in case 7d e7tagha
+Process *Running_Process = NULL; // Pointer to the currently running process
 int scheduling_algorithm;  
-int Nprocesses;               //Total number of processes passed from process generator
-int handled_processes_count;  //Total number of actually scheduled processes 
+int Nprocesses;               // Total number of processes passed from process generator
+int handled_processes_count;  // Total number of actually scheduled processes 
 int roundRobinSlice; 
-int idle_time;                //please matnsosh t.update.o da kman       
+int idle_time;                // Tracks CPU idle time for performance calculation       
 FILE *schedulerLog, *perfLog; 
+ProcessQueue ready_list;      // Ready queue to store processes
 
 // Function Prototypes
 void init_Scheduler(int argc, char *argv[]);
 void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list);
 void calculate_performance(float *allWTA, int handled_processes_count, int totalRunTime);
-void log_event(const char *event, Process *process); //call it kol m t3mlo event mn el 4 log it 
+void log_event(const char *event, Process *process);
+void fork_and_run(Process *process, int runtime);
+void handle_process_completion(int qid_process);
+void handle_preemption(Process *current_process, int qid_process);
 void handle_HPF();
 void handle_SJF();
 void handle_MLFQ();
@@ -31,18 +37,21 @@ int main(int argc, char *argv[])
 {
     initClk();
 
-    //TODO: implement the scheduler.
+    // Initialize scheduler
     init_Scheduler(argc, argv);
+    init_PCB(); // Initialize PCB table
+
+    // Message queues
     key_t key_id1 = ftok("keyfile", 70);
-    int qid_generator = msgget(key_id1, 0666 | IPC_CREAT); // message queue to receive processes from process_generator file
+    int qid_generator = msgget(key_id1, 0666 | IPC_CREAT); // From process generator
 
     key_t key_id2 = ftok("keyfile", 60);
-    int qid_process = msgget(key_id2, 0666 | IPC_CREAT); //message queue to receive updates from process.c
-    ProcessQueue ready_list;
-    init_ProcessQueue(&ready_list); // Temporary queue for new processes
+    int qid_process = msgget(key_id2, 0666 | IPC_CREAT); // From process.c
+
+    init_ProcessQueue(&ready_list); // Initialize ready queue
 
     int start_time = getClk(); 
-    float allWTA[1000] = {0}; // Array to store Weighted Turnaround Times
+    float allWTA[1000] = {0}; // Weighted Turnaround Times
 
     // Main scheduler loop
     while (1) 
@@ -56,11 +65,10 @@ int main(int argc, char *argv[])
             break; // Exit scheduler loop
         }
 
-        handle_process_reception(qid_generator, &ready_list); //lw 3yzeen ta5doha gowa el functions bt3tko it's up to u
-        // el fn msh bt.fork el process hya bs bt7ottaha fl ready list ana sybalko ento el forking
-        // el PCB howa struct Process, matnsoosh t.update it
+        // Handle new arrivals from the generator
+        handle_process_reception(qid_generator, &ready_list);
 
-        // Select the appropriate scheduling algorithm
+        // Select and execute the appropriate scheduling algorithm
         switch (scheduling_algorithm) 
         {
             case 1:
@@ -78,21 +86,18 @@ int main(int argc, char *argv[])
             default:
                 fprintf(stderr, "Invalid scheduling algorithm\n");
                 exit(EXIT_FAILURE);
-        } //by here, ready_list is mtzabbata a5er tazabeet
+        }
 
-        //actually fork the process via process.c file
-        //when exit code comes (pid) with finish, delete el pcb entry
-        //momkn tb2a stopped 3ady
+        // Handle process completion or preemption
+        handle_process_completion(qid_process);
     }
 
     // Clean up and exit
     fclose(schedulerLog);
     fclose(perfLog);
-    msgctl(qid_generator, IPC_RMID, NULL); // Remove message queue
-    msgctl(qid_process, IPC_RMID, NULL); // Remove message queue
-
-    //TODO: upon termination release the clock resources.
-    // what are clk resources ?
+    msgctl(qid_generator, IPC_RMID, NULL);
+    msgctl(qid_process, IPC_RMID, NULL);
+    free_PCB(); // Free dynamically allocated PCB table
     destroyClk(true);
     return 0;
 }
@@ -102,7 +107,7 @@ void init_Scheduler(int argc, char *argv[])
 {
     scheduling_algorithm = atoi(argv[1]); 
     Nprocesses = atoi(argv[2]);
-    roundRobinSlice = (argc > 3) ? atoi(argv[3]) : 0; // Get time slice for RR if provided
+    roundRobinSlice = (argc > 3) ? atoi(argv[3]) : 0; // Time slice for RR if provided
     handled_processes_count = 0;
     idle_time = 0;
 
@@ -114,36 +119,77 @@ void init_Scheduler(int argc, char *argv[])
         fprintf(stderr, "Failed to open log files\n");
         exit(EXIT_FAILURE);
     }
-    fprintf(schedulerLog, "#AT time x process y state arr w total z remain y wait k"); //first line in log file
+    fprintf(schedulerLog, "#AT time x process y state arr w total z remain y wait k\n");
 }
 
-// Handle process reception from the message queue
+// Receive new processes from the process generator
 void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list) 
 {
     struct msgbuff message;
-    while (msgrcv(msg_queue_id, &message, sizeof(Process), 0, IPC_NOWAIT) != -1) // Add received process to ready list
-    { enqueue_ProcessQueue(ready_list, message.mtext); }
+    while (msgrcv(msg_queue_id, &message, sizeof(Process), 0, IPC_NOWAIT) != -1) 
+    {
+        enqueue_ProcessQueue(ready_list, message.mtext); // Add to ready queue
+    }
 }
 
-// Calculate performance metrics at the end of execution
-void calculate_performance(float *allWTA, int handled_processes_count, int totalRunTime) //scheduler.perf file
+// Fork and run the process for a specified runtime, handling "resumed" events
+void fork_and_run(Process *process, int runtime)
 {
-    float avgWTA = 0;
-    float cpuUtil = ((totalRunTime-idle_time)*100/(float)totalRunTime);
+    if (process->state == 1) // Previously stopped (waiting state)
+    {
+        log_event("resumed", process); // Log resumed event
+    }
 
-    // Compute average Weighted Turnaround Time (WTA)
-    for (int i = 0; i < handled_processes_count; i++)
-    { avgWTA += allWTA[i]; }
-    avgWTA /= handled_processes_count;
+    int pid = fork();
+    if (pid == 0) // Child process
+    {
+        char runtime_arg[10];
+        sprintf(runtime_arg, "%d", runtime);
+        char *args[] = {"./process.out", runtime_arg, NULL};
+        execv("./process.out", args);
+    }
+    else // Parent (Scheduler)
+    {
+        process->pid = pid; // Store PID in PCB
+        process->state = 0; // Running state
+        log_event("started", process); // Log started event
+        add_to_PCB(process); // Add the process to the PCB table
+        Running_Process = process;
+    }
+}
 
-    // Log performance metrics
-    fprintf(perfLog, "CPU utilization = %.2f%%\n", cpuUtil);
-    fprintf(perfLog, "Avg WTA = %.2f\n", avgWTA);
-    fprintf(perfLog, "Avg Waiting = %.2f%%\n", cpuUtil);
+// Handle process completion or preemption
+void handle_process_completion(int qid_process)
+{
+    struct msgbuff message;
+    while (msgrcv(qid_process, &message, sizeof(message), 0, IPC_NOWAIT) != -1)
+    {
+        Process *current_process = Running_Process;
+        if (message.mtext.remainingtime > 0) 
+        {
+            // Preempted process, re-enqueue
+            current_process->remainingtime = message.mtext.remainingtime;
+            current_process->state = 1; // Waiting state
+            enqueue_ProcessQueue(&ready_list, *current_process);
+            log_event("stopped", current_process); // Log stopped event
+        }
+        else 
+        {
+            // Process completed
+            current_process->remainingtime = 0;
+            current_process->finishtime = getClk();
+            current_process->TA = current_process->finishtime - current_process->arrivaltime;
+            current_process->WTA = (float)current_process->TA / current_process->runtime;
+            log_event("finished", current_process); // Log finished event
+            remove_from_PCB(current_process->pid); // Remove from PCB table
+            handled_processes_count++;
+        }
+        Running_Process = NULL;
+    }
 }
 
 // Log an event with relevant details
-void log_event(const char *event, Process *process)  //scheduler.log file
+void log_event(const char *event, Process *process)
 {
     if (strcmp(event, "started") == 0 || strcmp(event, "resumed") == 0 || strcmp(event, "stopped") == 0) 
     {
@@ -157,23 +203,16 @@ void log_event(const char *event, Process *process)  //scheduler.log file
     }
 }
 
-// matensoosh t.update.o el finish time w el hagat di pls
-void handle_HPF() 
+// Calculate performance metrics
+void calculate_performance(float *allWTA, int handled_processes_count, int totalRunTime)
 {
+    float avgWTA = 0;
+    float cpuUtil = ((totalRunTime - idle_time) * 100.0) / totalRunTime;
 
-}
+    for (int i = 0; i < handled_processes_count; i++)
+        avgWTA += allWTA[i];
+    avgWTA /= handled_processes_count;
 
-void handle_SJF()
-{
-
-}
-
-void handle_MLFQ() 
-{
-
-}
-
-void handle_RR() 
-{
-
+    fprintf(perfLog, "CPU utilization = %.2f%%\n", cpuUtil);
+    fprintf(perfLog, "Avg WTA = %.2f\n", avgWTA);
 }
