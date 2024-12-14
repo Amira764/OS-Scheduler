@@ -1,6 +1,6 @@
 #include "headers.h"
 #include "ProcessQueue.h"
-#pragma once
+#include <string.h>
 
 struct msgbuff
 {
@@ -23,7 +23,7 @@ void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list);
 void calculate_performance(float *allWTA, int handled_processes_count, int totalRunTime);
 void log_event(const char *event, Process *process); //call it kol m t3mlo event mn el 4 log it 
 void handle_HPF();
-void handle_SJF():
+void handle_SJF();
 void handle_MLFQ();
 void handle_RR();
 
@@ -35,7 +35,8 @@ int main(int argc, char *argv[])
     init_Scheduler(argc, argv);
     key_t key_id = ftok("keyfile", 70);
     int qid = msgget(key_id, 0666 | IPC_CREAT); // message queue to receive processes from process_generator file
-    ProcessQueue *ready_list = init_ProcessQueue(&ready_list); // Temporary queue for new processes
+    ProcessQueue ready_list;
+    init_ProcessQueue(&ready_list); // Temporary queue for new processes
 
     int start_time = getClk(); 
     float allWTA[1000] = {0}; // Array to store Weighted Turnaround Times
@@ -43,7 +44,7 @@ int main(int argc, char *argv[])
     // Main scheduler loop
     while (1) 
     {
-        handle_process_reception(qid, ready_list); //lw 3yzeen ta5doha gowa el functions bt3tko it's up to u
+        handle_process_reception(qid, &ready_list); //lw 3yzeen ta5doha gowa el functions bt3tko it's up to u
         // el fn msh bt.fork el process hya bs bt7ottaha fl ready list ana sybalko ento el forking
         // el PCB howa struct Process, matnsoosh t.update it
 
@@ -60,7 +61,7 @@ int main(int argc, char *argv[])
                 handle_RR();
                 break;
             case 4: 
-                handle_MLFQ(): 
+                handle_MLFQ();
                 break;
             default:
                 fprintf(stderr, "Invalid scheduling algorithm\n");
