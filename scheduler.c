@@ -90,7 +90,8 @@ int main(int argc, char *argv[])
         }
 
         // Handle process completion or preemption
-        handle_process_completion(qid_process, allWTA, allWT);
+        // may be called inside scheduling algos i do not know
+        // handle_process_completion(qid_process, allWTA, allWT);
     }
 
     // Clean up and exit
@@ -136,7 +137,7 @@ void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list)
 }
 
 // Fork and run the process for a specified runtime, handling "resumed" events
-void fork_and_run(Process *process, int runtime)
+void fork_and_run(Process *process, int runtime) //called inside scheduling algorithms
 {
     if (process->state == 1) // Previously stopped (waiting state)
     {
