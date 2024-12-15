@@ -125,11 +125,32 @@ void init_Scheduler(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     fprintf(schedulerLog, "#AT time x process y state arr w total z remain y wait k\n");
+
+    // Intializing the appropraite DS for the scheduling
+    switch (scheduling_algorithm) 
+    {
+        case 1:
+            //TODO: init SJF (Dandon);
+            break;
+        case 2:
+            //TODO: init HPF (Dandon);
+            break;
+        case 3:
+            //TODO: init RR (Rehab); //Ready queue 
+            break;
+        case 4: 
+            init_MLFQ();
+            break;
+        default:
+            fprintf(stderr, "Invalid scheduling algorithm\n");
+            exit(EXIT_FAILURE);
+    }
 }
 
 // Receive new processes from the process generator
 void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list) 
 {
+    //add switch case for ready_list per each algorithm
     struct msgbuff message;
     while (msgrcv(msg_queue_id, &message, sizeof(Process), 0, IPC_NOWAIT) != -1) 
     {
@@ -142,8 +163,15 @@ void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list)
 void fork_process(Process *process)
 {
     int pid = fork();
+    if(pid==0)
+    {
+        execv("./process.out", process->remainingtime, NULL);
+    }
     if(pid!=0) // Parent (Scheduler)
-    { process->pid = pid; } // Store PID in PCB
+    { 
+        process->pid = pid; 
+    } // Store PID in PCB
+    
 }
 
 // Fork and run the process for a specified runtime, handling "resumed" events
@@ -156,8 +184,8 @@ void run(Process *process) //called inside scheduling algorithms
         { log_event("resumed", process); } // Log resumed event
         else // Child process
         { log_event("started", process); } // Log started event
-
-        // execv("./process.out", NULL);
+        kill(SIGUSR1,getpid());
+        process->remainingtime--;
         Running_Process = process; //can be removed later
     }
 }
@@ -189,9 +217,6 @@ void handle_process_completion(Process * process, float *allWTA, int *allWT)
     log_event("finished", process); // Log finished event
     remove_from_PCB(process->pid); // Remove from PCB table
     handled_processes_count++;
-    if(process->pid == getpid())
-    { exit(0); } //process terminating itself -> should be in process.c ?
-
     Running_Process = NULL; //can be removed later
 }
 
