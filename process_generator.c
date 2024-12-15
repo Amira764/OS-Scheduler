@@ -7,7 +7,7 @@ void clearResources(int);
 int clk_pid;
 int scheduler_pid;
 int qid;
-
+void parseArguments(int argc, char *argv[], char **inputFile, int *scheduling_algorithm, int *quantum);
 #define buffersize 100
 struct msgbuff
 {
@@ -19,11 +19,19 @@ int main(int argc, char *argv[])
 {
     signal(SIGINT, clearResources);
 
+    // Variables to store parsed values
+    char *inputFileName = NULL;
+    int scheduling_algorithm = -1;
+    int quantum = 0;
+
+    // Parse the command-line arguments
+    parseArguments(argc, argv, &inputFileName, &scheduling_algorithm, &quantum);
+
     // TODO Initialization
     // 1. Read the input files.
     char buffer[buffersize];
     FILE *InputFile;
-    InputFile = fopen("processes.txt", "r");
+    InputFile = fopen(inputFileName, "r");
     if (InputFile < 0)
     {
         printf(">> Could not open the file\n");
@@ -56,19 +64,6 @@ int main(int argc, char *argv[])
     }
 
     // 2. Read the chosen scheduling algorithm and its parameters, if there are any from the argument list.
-    printf("Choose the scheduling algorithm"); 
-    printf("Enter :  \n 1. Shortest Job First (SJF) \n 2. Preemptive Highest Priority First (HPF) \n 3. Round Robin (RR) \n 4. Multiple level Feedback Loop >> ");
-    
-    fgets(buffer, buffersize, stdin);
-    int scheduling_algorithm = atoi(buffer);
-    int TimeSlice=0;
-    if (scheduling_algorithm == 3)
-    {
-        printf("Enter TimeSlice: ");
-        fgets(buffer, buffersize, stdin);
-        TimeSlice = atoi(buffer);
-    }
-
     // 3. Initiate and create the scheduler and clock processes.
     clk_pid = fork();
     if (clk_pid == 0)
@@ -82,7 +77,7 @@ int main(int argc, char *argv[])
         char RRslice[12];
         sprintf(algorithm, "%d", scheduling_algorithm);
         sprintf(N, "%d", Nprocesses);
-        sprintf(RRslice, "%d", TimeSlice);
+        sprintf(RRslice, "%d", quantum);
         char *args[] = {"./scheduler.out", algorithm, N, RRslice, NULL};
         execv("./scheduler.out", args);
     }
@@ -131,4 +126,50 @@ void clearResources(int signum)
     exit(0);
 }
 
+
+// Function to parse command-line arguments
+void parseArguments(int argc, char *argv[], char **inputFile, int *scheduling_algorithm, int *quantum)
+{
+    if (argc < 2)
+    {
+        printf("Usage: ./process_generator.o <input_file> -sch <algorithm> [-q <quantum>]\n");
+        exit(1);
+    }
+
+    // Parse arguments
+    for (int i = 1; i < argc; i++)
+    {
+        if (strcmp(argv[i], "-sch") == 0 && (i + 1) < argc)
+        {
+            *scheduling_algorithm = atoi(argv[i + 1]); // Scheduling algorithm
+            i++; // Skip the next argument as it's already processed
+        }
+        else if (strcmp(argv[i], "-q") == 0 && (i + 1) < argc)
+        {
+            *quantum = atoi(argv[i + 1]); // Quantum time for RR
+            i++; // Skip the next argument
+        }
+        else if (*inputFile == NULL)
+        {
+            *inputFile = argv[i]; // Input file name
+        }
+        else
+        {
+            printf("Unknown argument: %s\n", argv[i]);
+            exit(1);
+        }
+    }
+
+    // Error checks
+    if (*inputFile == NULL)
+    {
+        printf("Error: Input file not specified.\n");
+        exit(1);
+    }
+    if (*scheduling_algorithm == -1)
+    {
+        printf("Error: Scheduling algorithm not specified. Use -sch <algorithm>.\n");
+        exit(1);
+    }
+}
 

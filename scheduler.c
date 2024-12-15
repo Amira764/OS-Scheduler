@@ -103,6 +103,7 @@ int main(int argc, char *argv[])
     fclose(perfLog);
     msgctl(qid_generator, IPC_RMID, NULL);
     free_PCB(); // Free dynamically allocated PCB table
+    kill(SIGINT, getppid());
     destroyClk(true);
     return 0;
 }
@@ -139,7 +140,7 @@ void init_Scheduler(int argc, char *argv[])
             //TODO: init RR (Rehab); //Ready queue 
             break;
         case 4: 
-            init_MLFQ();
+            // init_MLFQ();
             break;
         default:
             fprintf(stderr, "Invalid scheduling algorithm\n");
@@ -165,7 +166,10 @@ void fork_process(Process *process)
     int pid = fork();
     if(pid==0)
     {
-        execv("./process.out", process->remainingtime, NULL);
+        char remtime[20];
+        sprintf(remtime, "%d", process->remainingtime);
+        char *args[] = {"./process.out", remtime, NULL};
+        execv("./process.out", args);
     }
     if(pid!=0) // Parent (Scheduler)
     { 
