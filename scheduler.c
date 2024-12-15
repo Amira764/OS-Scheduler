@@ -3,6 +3,7 @@
 #include "PCB.h"
 #include <string.h>
 #include <sys/wait.h>
+#include "LinkedList.h"
 
 struct msgbuff
 {
@@ -31,8 +32,19 @@ void handle_process_stop(Process * process);
 void handle_process_completion(Process * process, float *allWTA, int *allWT);
 void handle_HPF();
 void handle_SJF();
-void handle_MLFQ();
 void handle_RR();
+
+/////////////////////////////////////////////////////////MLFQ////////////////////////////////////////////////////////////
+// Declare and initialize queues for each level
+Node *levels[NUM_LEVELS];
+
+// Function Prototypes
+void init_MLFQ(); 
+void handle_MLFQ(float *allWTA, int *allWT ,int time_quantum);
+void redistributeProcessesByPriority(); 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 
 int main(int argc, char *argv[])
 {
@@ -46,7 +58,7 @@ int main(int argc, char *argv[])
     key_t key_id1 = ftok("keyfile", 70);
     int qid_generator = msgget(key_id1, 0666 | IPC_CREAT); // From process generator
 
-    init_ProcessQueue(&ready_list, Nprocesses); // Initialize ready queue
+    init_ProcessQueue(&ready_list, Nprocesses); // Initialize ready queue (MIRA/REHAB: Hasa dy el mafrod tb2a gowa el init scheduler el switch bsr7a By mimo)
 
     int start_time = getClk(); 
     float *allWTA = calloc(Nprocesses, sizeof(float)); // Weighted Turnaround Times (dynamic)
@@ -85,7 +97,7 @@ int main(int argc, char *argv[])
                     handle_RR();
                     break;
                 case 4: 
-                    handle_MLFQ();
+                    handle_MLFQ(allWTA,allWT,roundRobinSlice);
                     break;
                 default:
                     fprintf(stderr, "Invalid scheduling algorithm\n");
@@ -140,7 +152,7 @@ void init_Scheduler(int argc, char *argv[])
             //TODO: init RR (Rehab); //Ready queue 
             break;
         case 4: 
-            // init_MLFQ();
+            init_MLFQ();
             break;
         default:
             fprintf(stderr, "Invalid scheduling algorithm\n");
@@ -156,10 +168,32 @@ void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list)
     while (msgrcv(msg_queue_id, &message, sizeof(Process), 0, IPC_NOWAIT) != -1) 
     {
         active_time += message.mtext.runtime;
-        enqueue_ProcessQueue(ready_list, message.mtext); // Add to ready queue
+        switch (scheduling_algorithm) 
+        {
+            case 1:
+                //TODO: insert in SJF (Dandon);
+                break;
+            case 2:
+                //TODO: insert in HPF (Dandon);
+                break;
+            case 3:
+                enqueue_ProcessQueue(ready_list, message.mtext); // Add to ready queue
+                break;
+            case 4: 
+                int priority_level = message.mtext.priority; 
+                if (priority_level >= 0 && priority_level < NUM_LEVELS) {
+                    printf("Should insert in level %d \n", priority_level);
+                    enqueue_linkedlist(&levels[priority_level], message.mtext);
+                }
+                break;
+            default:
+                fprintf(stderr, "Invalid scheduling algorithm\n");
+                exit(EXIT_FAILURE);
+        }
         fork_process(&message.mtext); //fork the process
     }
 }
+
 
 void fork_process(Process *process)
 {
@@ -179,19 +213,30 @@ void fork_process(Process *process)
 }
 
 // Fork and run the process for a specified runtime, handling "resumed" events
-void run(Process *process) //called inside scheduling algorithms
+void run(Process *process) // Called inside scheduling algorithms
 {
-    if(process->pid == getpid())
+    printf("Inside run \n");
+    add_to_PCB(process); // Add the process to the PCB table
+
+    // Log event based on process state
+    if (process->state == 1) // Previously stopped (waiting state)
     {
-        add_to_PCB(process); // Add the process to the PCB table
-        if (process->state == 1) // Previously stopped (waiting state)
-        { log_event("resumed", process); } // Log resumed event
-        else // Child process
-        { log_event("started", process); } // Log started event
-        kill(SIGUSR1,getpid());
-        process->remainingtime--;
-        Running_Process = process; //can be removed later
+        log_event("resumed", process); // Log resumed event
     }
+    else // New process
+    {
+        log_event("started", process); // Log started event
+    }
+
+    // Send SIGUSR1 to the process
+    kill(process->pid, SIGUSR1);
+
+    // Update remaining time
+    process->remainingtime--;
+    Running_Process = process; //can be removed later
+
+    // Print process information
+    printf("Process running with id %d, remaining_time %d\n", process->id, process->remainingtime);
 }
 
 // Handle process preemption
@@ -199,7 +244,27 @@ void handle_process_stop(Process * process)
 {
     // Preempted process, re-enqueue
     process->state = 1; // Waiting state
-    enqueue_ProcessQueue(&ready_list, *process); //return to ready list -> debatable
+    switch (scheduling_algorithm) 
+        {
+            case 1:
+                //TODO: insert in SJF (Dandon);
+                break;
+            case 2:
+                //TODO: insert in HPF (Dandon);
+                break;
+            case 3:
+                enqueue_ProcessQueue(&ready_list, *process); //return to ready list -> debatable
+                break;
+            case 4: 
+                int priority_level = process->priority; 
+                if (priority_level >= 0 && priority_level < NUM_LEVELS) {
+                    enqueue_linkedlist(&levels[priority_level], *process);
+                }
+                break;
+            default:
+                fprintf(stderr, "Invalid scheduling algorithm\n");
+                exit(EXIT_FAILURE);
+        }
     log_event("stopped", process); // Log stopped event
     Running_Process = NULL; //can be removed later
 }
@@ -268,10 +333,114 @@ void handle_SJF()
 {
     return;
 }
-void handle_MLFQ()
-{
-    return;
+/////////////////////////////////////////////// MLFQ ///////////////////////////////////////////////////////////////////////////
+// Initialize all levels to empty linked lists
+void init_MLFQ() {
+    for (int i = 0; i < NUM_LEVELS; i++) {
+        levels[i] = NULL;  // Initialize each level to NULL (empty linked list)
+    }
 }
+
+//pre-emptive ana msh 3yza keda
+void handle_MLFQ(float *allWTA, int *allWT, int time_quantum) {
+    static int current_level = 0;  // Tracks the current level of the queue
+    static int processesRunInLevel10 = 0;  // Counter for processes run in level 10
+    static int remaining_run = 0;  // Tracks the remaining time of the current running process
+    static Process *running_process = NULL;  // Pointer to the currently running process
+
+    printf("Current clock: %d\n", getClk());
+
+    // If there's no running process or remaining time is exhausted, get a new process
+    if (running_process == NULL || remaining_run == 0) {
+        // Find the next non-empty level to process
+        while (current_level < NUM_LEVELS && isLevelEmpty(levels[current_level])) {
+            current_level++;
+        }
+
+        // Cap to the highest valid level if necessary
+        if (current_level >= NUM_LEVELS) {
+            current_level = NUM_LEVELS - 1;  // Cap to the highest valid level
+        }
+
+        // Special handling for level 10
+        if (allLevelsEmptyExceptLevel10(levels) && current_level == 10) {
+            if (processesRunInLevel10 == getLevelSize(levels[10])) { 
+                redistributeProcessesByPriority();
+                processesRunInLevel10 = 0; 
+                current_level = 0; 
+            }
+        }
+
+        // If no processes remain, return
+        if (allLevelsEmpty(levels)) {
+            processesRunInLevel10 = 0; 
+            return;
+        }
+
+        // Get the next process to run from the current level
+        running_process = dequeue_linkedlist(&levels[current_level]);
+        remaining_run = (running_process->remainingtime < time_quantum) ? running_process->remainingtime : time_quantum;
+    }
+
+    if (running_process) {
+        // Run the process for the remaining time
+        run(running_process);
+        remaining_run--;
+
+        // If the process has completed
+        if (running_process->remainingtime == 0) {
+            handle_process_completion(running_process, allWTA, allWT);
+            running_process = NULL;  // Reset running process after completion
+        } else if (remaining_run == 0) {
+            // Process didn't finish in the current quantum, preempt it and consider demotion or promotion
+            handle_process_stop(running_process);
+
+            // Demote to the next level if not at the highest priority
+            if (current_level < NUM_LEVELS - 1) {
+                enqueue_linkedlist(&levels[current_level + 1], *running_process);  // Demote to next level
+            } else {
+                // Stay at the current level if it's the lowest level (level 10)
+                enqueue_linkedlist(&levels[current_level], *running_process);  
+                if (current_level == 10) {
+                    processesRunInLevel10++;
+                }
+            }
+
+            // Reset running process for the next round
+            running_process = NULL;
+        }
+    }
+
+    // Do not reset `current_level` to 0 here if you want the scheduler to continue on the next cycle
+}
+
+void redistributeProcessesByPriority() {
+    Node *dummy_level10 = NULL;  // This will hold processes that should stay at level 10
+    Node *temp = NULL;  // Temporary node for traversal
+
+    // Process the queue for level 10
+    int level10_size = getLevelSize(levels[10]);
+    while (!isLevelEmpty(levels[10])) {
+        // Dequeue the process from level 10
+        Process *process = dequeue_linkedlist(&levels[10]);
+
+        if (process) {
+            int new_priority_level = process->priority;  // Get the new priority level from the process
+
+            // If the process's priority is not 10, enqueue it to the appropriate level
+            if (new_priority_level != 10) {
+                enqueue_linkedlist(&levels[new_priority_level], *process);
+            } else {
+                // Otherwise, add the process to the dummy list (for level 10)
+                enqueue_linkedlist(&dummy_level10, *process);
+            }
+        }
+    }
+
+    // After processing, set level 10 to the dummy list
+    levels[10] = dummy_level10;
+}
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void handle_RR()
 {
     return;

@@ -12,3 +12,10 @@ all: clean build
 
 run:
 	./process_generator.out
+
+mimo: 
+	clear
+	make all 
+	./test_generator.out
+	clear
+	./process_generator.out processes.txt -sch 4 -q 10
