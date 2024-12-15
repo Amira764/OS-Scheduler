@@ -1,11 +1,14 @@
 #include "headers.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #pragma once
 
-// struct representing a process
+// Structure representing a process
 typedef struct
 {
     int id;
-    int pid; // when executing execv
+    int pid; // Process ID when executing execv
     int arrivaltime;
     int runtime;
     int priority;
@@ -14,36 +17,42 @@ typedef struct
     int finishtime;
     int TA;
     float WTA;
-    int state; // 0 for running , 1 for waiting
+    int state; // 0 for running, 1 for waiting
 } Process;
 
-#define MAX_QUEUE_SIZE 100
-
-// Structure representing a queue of processes
+// Dynamically adjustable ProcessQueue structure
 typedef struct
 {
-    Process items[MAX_QUEUE_SIZE];
+    Process **items; // Array of pointers to Process
     int front;
     int rear;
+    int size; // Capacity of the queue
 } ProcessQueue;
 
-// Function to initialize a process queue
-void init_ProcessQueue(ProcessQueue *queue)
+// Function to initialize a process queue with a given size
+void init_ProcessQueue(ProcessQueue *queue, int size)
 {
+    queue->items = (Process **)malloc(size * sizeof(Process *));
+    if (!queue->items)
+    {
+        perror("Failed to allocate memory for the process queue");
+        exit(EXIT_FAILURE);
+    }
     queue->front = -1;
     queue->rear = -1;
+    queue->size = size;
 }
 
 // Function to check if the process queue is empty
-int isEmpty_ProcessQueue(ProcessQueue *queue)
+bool isEmpty_ProcessQueue(ProcessQueue *queue)
 {
     return (queue->front == -1 && queue->rear == -1);
 }
 
 // Function to check if the process queue is full
-int isFull_ProcessQueue(ProcessQueue *queue)
+bool isFull_ProcessQueue(ProcessQueue *queue)
 {
-    return (queue->rear + 1) % MAX_QUEUE_SIZE == queue->front;
+    return (queue->rear + 1) % queue->size == queue->front;
 }
 
 // Function to enqueue a process
@@ -55,6 +64,18 @@ void enqueue_ProcessQueue(ProcessQueue *queue, Process process)
         return;
     }
 
+    // Dynamically allocate memory for the process
+    Process *new_process = (Process *)malloc(sizeof(Process));
+    if (!new_process)
+    {
+        perror("Failed to allocate memory for the process");
+        exit(EXIT_FAILURE);
+    }
+
+    // Copy the process data into the newly allocated memory
+    *new_process = process;
+
+    // Enqueue the dynamically allocated process
     if (isEmpty_ProcessQueue(queue))
     {
         queue->front = 0;
@@ -62,24 +83,22 @@ void enqueue_ProcessQueue(ProcessQueue *queue, Process process)
     }
     else
     {
-        queue->rear = (queue->rear + 1) % MAX_QUEUE_SIZE;
+        queue->rear = (queue->rear + 1) % queue->size;
     }
 
-    queue->items[queue->rear] = process;
+    queue->items[queue->rear] = new_process;
 }
 
 // Function to dequeue a process
-Process dequeue_ProcessQueue(ProcessQueue *queue)
+Process *dequeue_ProcessQueue(ProcessQueue *queue)
 {
-    Process emptyProcess = {.id = -1, .arrivaltime = -1, .runtime = -1, .priority = -1};
-
     if (isEmpty_ProcessQueue(queue))
     {
         printf("Process queue is empty. Cannot dequeue.\n");
-        return emptyProcess;
+        return NULL;
     }
 
-    Process dequeuedProcess = queue->items[queue->front];
+    Process *dequeuedProcess = queue->items[queue->front];
     if (queue->front == queue->rear)
     {
         // Last element in the queue
@@ -88,22 +107,38 @@ Process dequeue_ProcessQueue(ProcessQueue *queue)
     }
     else
     {
-        queue->front = (queue->front + 1) % MAX_QUEUE_SIZE;
+        queue->front = (queue->front + 1) % queue->size;
     }
 
     return dequeuedProcess;
 }
 
 // Function to peek at the front process of the queue
-Process peek_ProcessQueue(ProcessQueue *queue)
+Process *peek_ProcessQueue(ProcessQueue *queue)
 {
-    Process emptyProcess = {.id = -1, .arrivaltime = -1, .runtime = -1, .priority = -1};
-
     if (isEmpty_ProcessQueue(queue))
     {
         printf("Process queue is empty. Cannot peek.\n");
-        return emptyProcess;
+        return NULL;
     }
 
     return queue->items[queue->front];
+}
+
+// Function to free the dynamically allocated queue
+void free_ProcessQueue(ProcessQueue *queue)
+{
+    // Free each individual process in the queue
+    while (!isEmpty_ProcessQueue(queue))
+    {
+        Process *process = dequeue_ProcessQueue(queue);
+        free(process);
+    }
+
+    // Free the queue itself
+    free(queue->items);
+    queue->items = NULL;
+    queue->size = 0;
+    queue->front = -1;
+    queue->rear = -1;
 }
