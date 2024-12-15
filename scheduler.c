@@ -232,10 +232,7 @@ void run(Process *process) //called inside scheduling algorithms
 void handle_process_stop(Process * process)
 {
     // Preempted process, re-enqueue
-    printf("Hello \n");
     process->state = 1; // Waiting state
-    printf("Hello 2 \n");
-    printf("Scheduling_algorithm = % d", scheduling_algorithm);
     switch (scheduling_algorithm) 
         {
             case 1:
@@ -248,14 +245,11 @@ void handle_process_stop(Process * process)
                 enqueue_ProcessQueue(&ready_list, *process); //return to ready list -> debatable
                 break;
             case 4:
-                printf("Nothing to be done already inserted in scheduler"); 
                 break;
             default:
-                printf("Nnvalid scheduling algorithm\n"); 
                 fprintf(stderr, "Invalid scheduling algorithm\n");
                 exit(EXIT_FAILURE);
         }
-    printf("hello 3 \n");
     log_event("stopped", process); // Log stopped event
     Running_Process = NULL; //can be removed later
 }
@@ -388,7 +382,7 @@ void init_MLFQ() {
 
 void handle_MLFQ(float *allWTA, int *allWT, int time_quantum) {
     static int time_remaining = 0;
-    static int processesRunInLevel10 = 0;  // Counter for processes run in level 10
+    static int processesRunInLevel10 = 0;  
     static int currentLevel = 0;
 
     printf("Clock: %d\n", getClk());
@@ -411,6 +405,9 @@ void handle_MLFQ(float *allWTA, int *allWT, int time_quantum) {
                 break;
             }
         }
+        if(currentLevel==10 && Running_Process!=NULL){
+            processesRunInLevel10++;
+        }
     }
 
     // If no process is selected, all queues are empty
@@ -423,11 +420,10 @@ void handle_MLFQ(float *allWTA, int *allWT, int time_quantum) {
 
     // Run the selected process
     if (Running_Process->remainingtime > 0) {
-        printf("Running process with ID = %d, time_remaining = %d\n", Running_Process->id, time_remaining);
+        printf("Running process with ID = %d, time_remaining = %d, level = %d\n", Running_Process->id, time_remaining, currentLevel);
         run(Running_Process);
         time_remaining--;
     }
-
     // Handle process completion
     if (Running_Process->remainingtime <= 0) {
         printf("Process with ID = %d completed, remaining time = %d\n", Running_Process->id, Running_Process->remainingtime);
@@ -438,29 +434,39 @@ void handle_MLFQ(float *allWTA, int *allWT, int time_quantum) {
     }
     // Handle process preemption (time slice expired)
     else if (time_remaining == 0) {
-        printf("Process with ID = %d preempted, demoting to next level.\n", Running_Process->id);
+        //printf("Process with ID = %d preempted, demoting to next level.\n", Running_Process->id);
         if (currentLevel + 1 < NUM_LEVELS) {
             enqueue_linkedlist(&levels[currentLevel + 1], *Running_Process);
-            printf("Demoted process with ID = %d to level %d\n", Running_Process->id, currentLevel + 1);
+            //printf("Demoted process with ID = %d to level %d\n", Running_Process->id, currentLevel + 1);
         } else {
             enqueue_linkedlist(&levels[10], *Running_Process);
-            processesRunInLevel10++;
-            printf("Process with ID = %d moved to level 10\n", Running_Process->id);
+            //printf("Process with ID = %d moved to level 10\n", Running_Process->id);
         }
-        handle_process_stop(Running_Process);       
-
-        free(Running_Process);  // Free memory after enqueue
+        handle_process_stop(Running_Process);
+        if (currentLevel==10)
+        {
+            printf("Process runned = %d , level size = %d \n", processesRunInLevel10 , getLevelSize(levels[10]));
+        }
+        
+        if (currentLevel == 10 && processesRunInLevel10 == getLevelSize(levels[10])) {
+            redistributeProcessesByPriority();
+            processesRunInLevel10 = 0; 
+        }
+        
+        free(Running_Process);
         Running_Process = NULL;
         time_remaining = 0;  // Reset time slice
     }
+
 }
 
 void redistributeProcessesByPriority() {
+    printf("DISTRUBUTEEE \n");
     Node *dummy_level10 = NULL;
     int level10_size = getLevelSize(levels[10]);
 
     while (!isLevelEmpty(levels[10])) {
-        Process process = dequeue_linkedlist(&levels[10]); // Get the Process
+        Process process = dequeue_linkedlist(&levels[10]);
         int new_priority_level = process.priority;
 
         if (new_priority_level != 10) {
