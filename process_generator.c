@@ -21,10 +21,6 @@ int main(int argc, char *argv[])
 
     // TODO Initialization
     // 1. Read the input files.
-    int Nprocesses = 0;
-    ProcessQueue Processes;
-    init_ProcessQueue(&Processes);
-
     char buffer[buffersize];
     FILE *InputFile;
     InputFile = fopen("processes.txt", "r");
@@ -33,6 +29,18 @@ int main(int argc, char *argv[])
         printf(">> Could not open the file\n");
         return -1;
     }
+    // Pre-scan the file to count the number of processes (excluding comments)
+    int Nprocesses = 0;
+    while (fgets(buffer, buffersize, InputFile) != NULL)
+    {
+        if (buffer[0] == '#') // Skip comments
+            continue;
+        Nprocesses++;
+    }
+    // Rewind the file pointer to read the data again
+    rewind(InputFile);
+    ProcessQueue Processes;
+    init_ProcessQueue(&Processes, Nprocesses);
     while (fgets(buffer, buffersize, InputFile) != NULL) // Read the file line by line
     { 
         if (buffer[0] == '#') // comment
@@ -95,11 +103,11 @@ int main(int argc, char *argv[])
     while (!isEmpty_ProcessQueue(&Processes))
     {
         x = getClk();
-        Process process_in_turn = peek_ProcessQueue(&Processes);
-        if (x == process_in_turn.arrivaltime)
+        Process * process_in_turn = peek_ProcessQueue(&Processes);
+        if (x == process_in_turn->arrivaltime)
         {
             process_in_turn = dequeue_ProcessQueue(&Processes);
-            message.mtext = process_in_turn;
+            message.mtext = *process_in_turn;
             msgsnd(qid, &message, sizeof(message.mtext), IPC_NOWAIT);
             printf("sending %d", message.mtext.id);
         }

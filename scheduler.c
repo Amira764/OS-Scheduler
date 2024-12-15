@@ -27,8 +27,8 @@ void calculate_performance(float *allWTA, int *allWT, int handled_processes_coun
 void log_event(const char *event, Process *process);
 void run(Process *process);
 void fork_process(Process *process);
-void handle_process_stop(int qid_process, float *allWTA, int *allWT);
-void handle_process_completion(Process * process);
+void handle_process_stop(Process * process);
+void handle_process_completion(Process * process, float *allWTA, int *allWT);
 void handle_HPF();
 void handle_SJF();
 void handle_MLFQ();
@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
     key_t key_id1 = ftok("keyfile", 70);
     int qid_generator = msgget(key_id1, 0666 | IPC_CREAT); // From process generator
 
-    init_ProcessQueue(&ready_list); // Initialize ready queue
+    init_ProcessQueue(&ready_list, Nprocesses); // Initialize ready queue
 
     int start_time = getClk(); 
     float *allWTA = calloc(Nprocesses, sizeof(float)); // Weighted Turnaround Times (dynamic)
@@ -167,13 +167,13 @@ void handle_process_stop(Process * process)
 {
     // Preempted process, re-enqueue
     process->state = 1; // Waiting state
-    enqueue_ProcessQueue(&ready_list, process); //return to ready list -> debatable
-    log_event("stopped", &process); // Log stopped event
+    enqueue_ProcessQueue(&ready_list, *process); //return to ready list -> debatable
+    log_event("stopped", process); // Log stopped event
     Running_Process = NULL; //can be removed later
 }
 
 // Handle process completion 
-void handle_process_completion(Process * process)
+void handle_process_completion(Process * process, float *allWTA, int *allWT)
 {
     // Process completed
     process->remainingtime = 0;
@@ -189,7 +189,7 @@ void handle_process_completion(Process * process)
     log_event("finished", process); // Log finished event
     remove_from_PCB(process->pid); // Remove from PCB table
     handled_processes_count++;
-    if(process->pid == getpid)
+    if(process->pid == getpid())
     { exit(0); } //process terminating itself -> should be in process.c ?
 
     Running_Process = NULL; //can be removed later
@@ -228,4 +228,22 @@ void calculate_performance(float *allWTA, int *allWT, int handled_processes_coun
     fprintf(perfLog, "CPU utilization = %.2f%%\n", cpuUtil);
     fprintf(perfLog, "Avg WTA = %.2f\n", avgWTA);
     fprintf(perfLog, "Avg Waiting Time = %.2f\n", avgWT);
+}
+
+
+void handle_HPF()
+{
+    return;
+}
+void handle_SJF()
+{
+    return;
+}
+void handle_MLFQ()
+{
+    return;
+}
+void handle_RR()
+{
+    return;
 }
