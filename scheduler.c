@@ -94,10 +94,6 @@ int main(int argc, char *argv[])
             currentClk = getClk();
             prevClk = currentClk;
         }
-
-        // Handle process completion or preemption
-        // may be called inside scheduling algos i do not know
-        // handle_process_completion(qid_process, allWTA, allWT);
     }
 
     // Clean up and exit
@@ -161,29 +157,19 @@ void run(Process *process) //called inside scheduling algorithms
         else // Child process
         { log_event("started", process); } // Log started event
 
-        char *args[] = {"./process.out", NULL};
-        execv("./process.out", args);
+        // execv("./process.out", NULL);
         Running_Process = process; //can be removed later
     }
 }
 
 // Handle process preemption
-void handle_process_stop(int qid_process, float *allWTA, int *allWT)
+void handle_process_stop(Process * process)
 {
-    struct msgbuff message;
-    while (msgrcv(qid_process, &message, sizeof(message), 0, IPC_NOWAIT) != -1)
-    {
-        Process *current_process = Running_Process;
-        if (message.mtext.remainingtime > 0) 
-        {
-            // Preempted process, re-enqueue
-            current_process->remainingtime = message.mtext.remainingtime; //remaining time passed via IPC
-            current_process->state = 1; // Waiting state
-            enqueue_ProcessQueue(&ready_list, *current_process); //return to ready list
-            log_event("stopped", current_process); // Log stopped event
-        }
-        Running_Process = NULL; //can be removed later
-    }
+    // Preempted process, re-enqueue
+    process->state = 1; // Waiting state
+    enqueue_ProcessQueue(&ready_list, process); //return to ready list -> debatable
+    log_event("stopped", &process); // Log stopped event
+    Running_Process = NULL; //can be removed later
 }
 
 // Handle process completion 
@@ -203,6 +189,8 @@ void handle_process_completion(Process * process)
     log_event("finished", process); // Log finished event
     remove_from_PCB(process->pid); // Remove from PCB table
     handled_processes_count++;
+    if(process->pid == getpid)
+    { exit(0); } //process terminating itself -> should be in process.c ?
 
     Running_Process = NULL; //can be removed later
 }
