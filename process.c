@@ -14,15 +14,15 @@ int main(int argc, char *argv[])
     // Initialize the clock
     initClk();
 
-    // Parse arguments
-    remainingtime = atoi(argv[1]); // Time for which the process should run
+    // // Parse arguments
+    // remainingtime = atoi(argv[1]); // Time for which the process should run
 
     while (remainingtime > 0)
     {
-        remainingtime--; // Decrement the remaining time
+        // remainingtime--; // Decrement the remaining time
     }
 
     // Clean up and exit
     destroyClk(false);
-    exit(0); //Terminate Myself
+    // exit(0); //Terminate Myself
 }
