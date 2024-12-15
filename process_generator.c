@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
         char N[12];
         char RRslice[12];
         sprintf(algorithm, "%d", scheduling_algorithm);
-        sprintf(N, "%d", Nprocesses);
+        sprintf(N, "%d", Nprocesses/2);
         sprintf(RRslice, "%d", quantum);
         char *args[] = {"./scheduler.out", algorithm, N, RRslice, NULL};
         execv("./scheduler.out", args);
