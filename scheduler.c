@@ -317,14 +317,143 @@ void calculate_performance(float *allWTA, int *allWT, int handled_processes_coun
     fprintf(perfLog, "Avg Waiting Time = %.2f\n", avgWT);
 }
 
-void handle_HPF()
+void handle_HPF(ProcessQueue *ready_queue, float *allWTA, int *allWT)
 {
-    return;
+    if (isEmpty_ProcessQueue(ready_queue))
+    {
+        return;
+    }
+
+    // Find the highest priority process in the ready queue
+    int highest_priority_index = -1;
+    int highest_priority = INT_MAX; // Highest priority is the smallest priority value
+
+    printf("Searching for the highest priority process...\n");
+
+    for (int i = ready_queue->front; i <= ready_queue->rear; i++)
+    {
+        Process *current_process = ready_queue->items[i];
+
+        // Debug: Log the current process being checked
+        printf("Checking process PID: %d, Remaining Time: %d, Priority: %d\n",
+               current_process->pid, current_process->remainingtime, current_process->priority);
+
+        if (current_process->remainingtime > 0 && current_process->priority < highest_priority)
+        {
+            highest_priority = current_process->priority;
+            highest_priority_index = i;
+        }
+    }
+
+    // If the highest priority process was found
+    if (highest_priority_index != -1)
+    {
+        Process *highest_priority_process = ready_queue->items[highest_priority_index];
+        run(highest_priority_process);
+        // If there is a currently running process, we check if preemption is needed
+        if (Running_Process != NULL && Running_Process->remainingtime > 0)
+        {
+            // If the new process has a higher priority (lower priority value), preempt the current process
+            if (highest_priority_process->priority < Running_Process->priority)
+            {
+                printf("Preempting process PID: %d with Priority: %d\n", Running_Process->pid, Running_Process->priority);
+
+                // Preempt the running process and put it back into the ready queue
+                handle_process_stop(Running_Process); // Stop the running process
+            }
+        }
+
+        // Run the highest priority process (whether it was preempted or not)
+        printf("Running process PID: %d with Priority: %d\n", highest_priority_process->pid, highest_priority_process->priority);
+
+        // After running the process, it might be completed, so we check and remove it from the queue if necessary
+        if (highest_priority_process->remainingtime <= 0)
+        {
+            printf("Process PID: %d has completed.\n", highest_priority_process->pid);
+
+            // Remove the completed process from the queue
+            if (highest_priority_index == ready_queue->front)
+            {
+                Process *completed_process = dequeue_ProcessQueue(ready_queue);
+                handle_process_completion(completed_process, allWTA, allWT);
+            }
+            else
+            {
+                // Shift processes accordingly to remove the completed process
+                for (int i = highest_priority_index; i < ready_queue->rear; i++)
+                {
+                    ready_queue->items[i] = ready_queue->items[i + 1];
+                }
+                ready_queue->rear--;
+            }
+        }
+
+        // Update Running_Process to the newly selected process
+        Running_Process = highest_priority_process;
+    }
 }
-void handle_SJF()
+
+void handle_SJF(ProcessQueue *ready_queue, float *allWTA, int *allWT)
 {
-    return;
+    if (isEmpty_ProcessQueue(ready_queue))
+    {
+        return;
+    }
+
+    printf("get clock = %d\n", getClk());
+
+    int shortest_index = -1;
+    int shortest_time = __INT_MAX__;
+
+    printf("Searching for the shortest process...\n");
+
+    // Loop through the queue to find the process with the shortest remaining time
+    for (int i = ready_queue->front; i <= ready_queue->rear; i++)
+    {
+        Process *current_process = ready_queue->items[i];
+
+        // Debug: Log the current process being checked
+        printf("Checking process PID: %d, Remaining Time: %d\n", current_process->pid, current_process->remainingtime);
+
+        // Check if the process has a non-zero remaining time and is the shortest so far
+        if (current_process->remainingtime > 0 && current_process->remainingtime < shortest_time)
+        {
+            shortest_time = current_process->remainingtime;
+            shortest_index = i;
+        }
+    }
+
+    Process *shortest_process = ready_queue->items[shortest_index];
+
+    run(shortest_process);
+
+    // Check if the process has completed or if we need to remove it
+    if (shortest_process->remainingtime <= 0)
+    {
+        printf("Process PID: %d has completed.\n", shortest_process->pid);
+
+        // Remove the completed process from the queue
+        if (shortest_index == ready_queue->front)
+        {
+            Process *completed_process = dequeue_ProcessQueue(ready_queue);
+            handle_process_completion(completed_process, allWTA, allWT);
+        }
+        else
+        {
+            // Shift processes accordingly to remove the completed process
+            for (int i = shortest_index; i < ready_queue->rear; i++)
+            {
+                ready_queue->items[i] = ready_queue->items[i + 1];
+            }
+            ready_queue->rear--;
+        }
+        return; // Exit after handling the completed process
+    }
+
+    // Run the shortest process
+    printf("Running process PID: %d, Remaining Time: %d\n", shortest_process->pid, shortest_process->remainingtime);
 }
+
 ////////////////////////////////////////////////////////////////////////////////RR//////////////////////////////////////////////////////
 void handle_RR(ProcessQueue *ready_queue, int quatnum,  float *allWTA, int *allWT)
 {
