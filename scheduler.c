@@ -5,6 +5,7 @@
 #include <sys/wait.h>
 #include "LinkedList.h"
 #include <limits.h>
+#include "Priority_Queue.h"
 
 struct msgbuff
 {
@@ -24,6 +25,7 @@ FILE *schedulerLog, *perfLog;
 ProcessQueue ready_list; // Ready queue to store processes
 pid_t scheduler_pid;
 Node *levels[NUM_LEVELS]; // Declare and initialize queues for each level
+PriorityQueue pq;
 
 // Function Prototypes
 void init_Scheduler(int argc, char *argv[]);
@@ -34,7 +36,7 @@ void run(Process *process, int clk);
 void fork_process(Process *process);
 void handle_process_stop(Process *process, int clk);
 void handle_process_completion(Process *process, float *allWTA, int *allWT, int clk);
-void handle_HPF(ProcessQueue *ready_queue, float *allWTA, int *allWT, int clk);
+void handle_HPF(PriorityQueue *pq , float *allWTA, int *allWT, int clk);
 void handle_SJF(ProcessQueue *ready_queue, float *allWTA, int *allWT, int clk);
 void handle_RR(ProcessQueue *ready_queue, int quatnum, float *allWTA, int *allWT, int clk);
 void handle_MLFQ(float *allWTA, int *allWT, int time_quantum, int clk);
@@ -84,7 +86,7 @@ int main(int argc, char *argv[])
                 handle_SJF(&ready_list, allWTA, allWT, currentClk);
                 break;
             case 2:
-                handle_HPF(&ready_list, allWTA, allWT, currentClk);
+                handle_HPF(&pq,allWTA, allWT, currentClk);
                 break;
             case 3:
                 handle_RR(&ready_list, roundRobinSlice, allWTA, allWT, currentClk);
@@ -137,10 +139,10 @@ void init_Scheduler(int argc, char *argv[])
     switch (scheduling_algorithm)
     {
     case 1:
-        init_ProcessQueue(&ready_list, Nprocesses);
+        initPQ(&pq, Nprocesses);
         break;
     case 2:
-        init_ProcessQueue(&ready_list, Nprocesses);
+        initPQ(&pq, Nprocesses);
         break;
     case 3:
         init_ProcessQueue(&ready_list, Nprocesses);
@@ -165,10 +167,10 @@ void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list)
         switch (scheduling_algorithm)
         {
         case 1:
-            enqueue_ProcessQueue(ready_list, message.mtext);
+            enqueue_PQ(&pq, message.mtext , false);
             break;
         case 2:
-            enqueue_ProcessQueue(ready_list, message.mtext);
+            enqueue_PQ(&pq, message.mtext , true);
             break;
         case 3:
             enqueue_ProcessQueue(ready_list, message.mtext); // Add to ready queue
@@ -240,10 +242,10 @@ void handle_process_stop(Process *process, int clk)
     switch (scheduling_algorithm)
     {
     case 1:
-        enqueue_ProcessQueue(&ready_list, *process);
+        enqueue_PQ(&pq, *process , false);
         break;
     case 2:
-        enqueue_ProcessQueue(&ready_list, *process);
+        enqueue_PQ(&pq, *process , true);
         break;
     case 3:
         enqueue_ProcessQueue(&ready_list, *process);
@@ -311,81 +313,39 @@ void calculate_performance(float *allWTA, int *allWT, int handled_processes_coun
     fprintf(perfLog, "Avg Waiting Time = %.2f\n", avgWT);
 }
 
-void handle_HPF(ProcessQueue *ready_queue, float *allWTA, int *allWT, int clk)
+void handle_HPF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
 {
-    if (isEmpty_ProcessQueue(ready_queue))
+    if (isEmpty_PQ(pq))
     {
-        return;
+        return; // No processes to handle
     }
 
-    // Find the highest priority process in the ready queue
-    int highest_priority_index = -1;
-    int highest_priority = INT_MAX; // Highest priority is the smallest priority value
-
-    printf("Searching for the highest priority process...\n");
-
-    for (int i = ready_queue->front; i <= ready_queue->rear; i++)
+    if (Running_Process == NULL)
     {
-        Process *current_process = ready_queue->items[i];
-
-        // Debug: Log the current process being checked
-        printf("Checking process PID: %d, Remaining Time: %d, Priority: %d\n",
-               current_process->pid, current_process->remainingtime, current_process->priority);
-
-        if (current_process->remainingtime > 0 && current_process->priority < highest_priority)
-        {
-            highest_priority = current_process->priority;
-            highest_priority_index = i;
-        }
+        Running_Process = peek_PQ(pq);
+        printf("Initial Running Process PID: %d, Priority: %d\n", Running_Process->pid, Running_Process->priority);
     }
 
-    // If the highest priority process was found
-    if (highest_priority_index != -1)
+    if (Running_Process->priority > peek_PQ(pq)->priority)
     {
-        Process *highest_priority_process = ready_queue->items[highest_priority_index];
-        run(highest_priority_process, clk);
-        // If there is a currently running process, we check if preemption is needed
-        if (Running_Process != NULL && Running_Process->remainingtime > 0)
-        {
-            // If the new process has a higher priority (lower priority value), preempt the current process
-            if (highest_priority_process->priority < Running_Process->priority)
-            {
-                printf("Preempting process PID: %d with Priority: %d\n", Running_Process->pid, Running_Process->priority);
+        printf("Preempting process ID: %d with Priority: %d\n", Running_Process->id, Running_Process->priority);
+        handle_process_stop(Running_Process, clk);
 
-                // Preempt the running process and put it back into the ready queue
-                handle_process_stop(Running_Process, clk); // Stop the running process
-            }
-        }
+        Running_Process = peek_PQ(pq);
+        printf("New Running Process ID: %d, Priority: %d\n", Running_Process->id, Running_Process->priority);
+    }
 
-        // Run the highest priority process (whether it was preempted or not)
-        printf("Running process PID: %d with Priority: %d\n", highest_priority_process->pid, highest_priority_process->priority);
+    printf("Running Process ID: %d, Remaining Time: %d, Priority: %d\n", Running_Process->id, Running_Process->remainingtime, Running_Process->priority);
+    run(Running_Process, clk);
 
-        // After running the process, it might be completed, so we check and remove it from the queue if necessary
-        if (highest_priority_process->remainingtime <= 0)
-        {
-            printf("Process PID: %d has completed.\n", highest_priority_process->pid);
-
-            // Remove the completed process from the queue
-            if (highest_priority_index == ready_queue->front)
-            {
-                Process *completed_process = dequeue_ProcessQueue(ready_queue);
-                handle_process_completion(completed_process, allWTA, allWT, clk);
-            }
-            else
-            {
-                // Shift processes accordingly to remove the completed process
-                for (int i = highest_priority_index; i < ready_queue->rear; i++)
-                {
-                    ready_queue->items[i] = ready_queue->items[i + 1];
-                }
-                ready_queue->rear--;
-            }
-        }
-
-        // Update Running_Process to the newly selected process
-        Running_Process = highest_priority_process;
+    if (Running_Process->remainingtime == 0)
+    {
+        printf("Process ID: %d has completed.\n", Running_Process->id);
+        handle_process_completion(Running_Process, allWTA, allWT, clk);
+        dequeue_PQ(pq);
     }
 }
+
 
 void handle_SJF(ProcessQueue *ready_queue, float *allWTA, int *allWT, int clk)
 {
