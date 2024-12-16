@@ -1,5 +1,6 @@
 #include "headers.h"
 #include <string.h>
+#include <signal.h>
 #include "ProcessQueue.h"
 
 void clearResources(int);
@@ -18,13 +19,10 @@ struct msgbuff
 int main(int argc, char *argv[])
 {
     signal(SIGINT, clearResources);
-
-    // Variables to store parsed values
     char *inputFileName = NULL;
     int scheduling_algorithm = -1;
     int quantum = 0;
 
-    // Parse the command-line arguments
     parseArguments(argc, argv, &inputFileName, &scheduling_algorithm, &quantum);
 
     // TODO Initialization
@@ -104,7 +102,6 @@ int main(int argc, char *argv[])
             process_in_turn = dequeue_ProcessQueue(&Processes);
             message.mtext = *process_in_turn;
             msgsnd(qid, &message, sizeof(message.mtext), IPC_NOWAIT);
-            printf("sending %d", message.mtext.id);
         }
     }
 

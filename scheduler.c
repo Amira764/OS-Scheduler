@@ -36,7 +36,6 @@ void handle_process_completion(Process * process, float *allWTA, int *allWT);
 void handle_HPF();
 void handle_SJF();
 void handle_RR(ProcessQueue *ready_queue,int quatnum,  float *allWTA, int *allWT);
-void handle_child_kill(int signum);
 
 /////////////////////////////////////////////////////////MLFQ////////////////////////////////////////////////////////////
 // Declare and initialize queues for each level
@@ -48,13 +47,9 @@ void handle_MLFQ(float *allWTA, int *allWT ,int time_quantum);
 void redistributeProcessesByPriority(); 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-
 int main(int argc, char *argv[])
 {
     scheduler_pid = getpid();
-    signal(SIGUSR2, handle_child_kill);
-    printf("ANA SCHEDULER W DA EL PID BTA3YYYYY %d\n", scheduler_pid);
     initClk();
     
     // Initialize scheduler
@@ -64,8 +59,6 @@ int main(int argc, char *argv[])
     // Message queues
     key_t key_id1 = ftok("keyfile", 70);
     int qid_generator = msgget(key_id1, 0666 | IPC_CREAT); // From process generator
-
-    init_ProcessQueue(&ready_list, Nprocesses); // Initialize ready queue (MIRA/REHAB: Hasa dy el mafrod tb2a gowa el init scheduler el switch bsr7a By mimo)
 
     int start_time = getClk(); 
     float *allWTA = calloc(Nprocesses, sizeof(float)); // Weighted Turnaround Times (dynamic)
@@ -80,7 +73,6 @@ int main(int argc, char *argv[])
         if(currentClk != prevClk)
         {
             // Check if all processes are completed
-            // if (Nprocesses == child_notifications) 
             if (Nprocesses == handled_processes_count)
             {
                 int end_time = getClk();
@@ -122,23 +114,10 @@ int main(int argc, char *argv[])
     fclose(perfLog);
     msgctl(qid_generator, IPC_RMID, NULL);
     free_PCB(); // Free dynamically allocated PCB table
-    kill(SIGINT, getppid()); //check this for el tarteeb
+    kill(getppid(),SIGINT); //check this for el tarteeb
     destroyClk(true);
     return 0;
 }
-
-// void Terminate_Scheduler()
-// {
-//     free(allWTA);
-//     free(allWT);
-//     fclose(schedulerLog);
-//     fclose(perfLog);
-//     msgctl(qid_generator, IPC_RMID, NULL);
-//     free_PCB(); // Free dynamically allocated PCB table
-//     kill(SIGINT, getppid()); //check this for el tarteeb
-//     destroyClk(true);
-//     exit(0);
-// }
 
 // Initialize scheduler configurations and open log files
 void init_Scheduler(int argc, char *argv[]) 
@@ -149,7 +128,7 @@ void init_Scheduler(int argc, char *argv[])
     handled_processes_count = 0;
     child_notifications = 0;
     active_time = 0;
-
+   
     // Open log files
     schedulerLog = fopen("Scheduler.log", "w");
     perfLog = fopen("Scheduler.perf", "w");
@@ -164,13 +143,13 @@ void init_Scheduler(int argc, char *argv[])
     switch (scheduling_algorithm) 
     {
         case 1:
-            //TODO: init SJF (Dandon);
+            init_ProcessQueue(&ready_list, Nprocesses); 
             break;
         case 2:
-            //TODO: init HPF (Dandon);
+            init_ProcessQueue(&ready_list, Nprocesses); 
             break;
         case 3:
-            //TODO: init RR (Rehab); //Ready queue 
+            init_ProcessQueue(&ready_list, Nprocesses); 
             break;
         case 4: 
             init_MLFQ();
@@ -189,7 +168,6 @@ void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list)
     while (msgrcv(msg_queue_id, &message, sizeof(Process), 0, IPC_NOWAIT) != -1) 
     {
         active_time += message.mtext.runtime;
-        // fork_process(&message.mtext); //fork the process
         switch (scheduling_algorithm) 
         {
             case 1:
@@ -219,7 +197,6 @@ void fork_process(Process *process)
     if(getpid()==scheduler_pid) //only scheduler can fork new processes
     {
         pid_t pid = fork();
-        printf("da el pid el ana 3mltlo fork w da ana %d %d \n", pid, getpid());
         if(pid==0)
         {
             char remtime[20];
@@ -233,29 +210,28 @@ void fork_process(Process *process)
             }
         }
         else
-        { process->pid = pid; }
+        { 
+            sleep(1); // give a chance for child process to start
+            process->pid = pid; 
+        }
     }
 }
 
 // Fork and run the process for a specified runtime, handling "resumed" events
 void run(Process *process) //called inside scheduling algorithms
 {
-    printf("ana f awl el run w bwreki el process\n");
-    print_process(*process);
     if (process->state == 1) // Previously stopped (waiting state)
     { 
-        printf("ana fl resume\n");
-        log_event("resumed", process); //why is this never logged ?
+        log_event("resumed", process);
     } // Log resumed event
     else if(process->remainingtime == process->runtime)// starting for the first time
     { 
-        fork_process(process);
         log_event("started", process); 
+        fork_process(process);
         add_to_PCB(process); // Add the process to the PCB table
     } // Log started event
     process->state = 0;
-    kill(SIGTERM, process->pid); //lw et3akas hanmoot
-    printf("ana fl run w el pid bta3y %d %d\n", process->pid, getpid());
+    kill(process->pid,SIGILL);
     process->remainingtime--;
     Running_Process = process; //can be removed later
 }
@@ -265,8 +241,6 @@ void handle_process_stop(Process * process)
 {
     // Preempted process, re-enqueue
     process->state = 1; // Waiting state
-    printf("ana ba.stop w bwreki el state aho zy el shater\n");
-    print_process(*process);
     log_event("stopped", process); // Log stopped event
     switch (scheduling_algorithm) 
     {
@@ -285,7 +259,7 @@ void handle_process_stop(Process * process)
             fprintf(stderr, "Invalid scheduling algorithm\n");
             exit(EXIT_FAILURE);
     }
-    Running_Process = NULL; //can be removed later
+    Running_Process = NULL; 
 }
 
 // Handle process completion 
@@ -305,8 +279,7 @@ void handle_process_completion(Process * process, float *allWTA, int *allWT)
     log_event("finished", process); // Log finished event
     remove_from_PCB(process->pid); // Remove from PCB table
     handled_processes_count++;
-    Running_Process = NULL; //can be removed later
-    printf("process:%d completed\n",process->pid);
+    Running_Process = NULL; 
 }
 
 // Log an event with relevant details
@@ -342,12 +315,6 @@ void calculate_performance(float *allWTA, int *allWT, int handled_processes_coun
     fprintf(perfLog, "CPU utilization = %.2f%%\n", cpuUtil);
     fprintf(perfLog, "Avg WTA = %.2f\n", avgWTA);
     fprintf(perfLog, "Avg Waiting Time = %.2f\n", avgWT);
-}
-
-void handle_child_kill(int signum)
-{
-    child_notifications++;
-    printf("child notis count %d\n",child_notifications);
 }
 
 void handle_HPF()
@@ -402,8 +369,6 @@ void handle_RR(ProcessQueue *ready_queue, int quatnum,  float *allWTA, int *allW
     
     // Run the process for one time slice (1 time step)
     run(current_process);  // Call the run function to simulate process execution for 1 time unit
-     // Debugging: print the PID when the process is added
-    printf("Running process with PID: %d to PCB\n", current_process->pid);
 
     // Increment the quantum counter
     quantum_counter++;
@@ -453,9 +418,6 @@ void handle_MLFQ(float *allWTA, int *allWT, int time_quantum)
         printf("No processes available to run.\n");
         return; // Nothing to execute
     }
-
-    print_process(*Running_Process); //3yza ashof hagat extra
-
     // Run the selected process
     if (Running_Process->remainingtime > 0) {
         printf("Running process with ID = %d, time_remaining = %d, level = %d\n", Running_Process->id, time_remaining, currentLevel);

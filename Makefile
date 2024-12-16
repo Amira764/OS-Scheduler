@@ -13,14 +13,14 @@ all: clean build
 run:
 	./process_generator.out
 
-mimo: 
+MLFQ: 
 	clear
 	make all 
 	./test_generator.out
 	clear
 	./process_generator.out processes.txt -sch 4 -q 10
 
-rehab: 
+RR: 
 	clear
 	make all 
 	./test_generator.out
