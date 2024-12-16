@@ -274,6 +274,7 @@ void handle_process_completion(Process *process, float *allWTA, int *allWT, int 
     allWTA[process->id] = process->WTA;
     allWT[process->id] = process->waitingtime;
     remove_from_PCB(process->pid); // Remove from PCB table
+    printf("Calledddd process complete %d \n" , process->pid);
     handled_processes_count++;
     Running_Process = NULL;
 }
@@ -317,7 +318,7 @@ void handle_HPF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
 {
     if (isEmpty_PQ(pq))
     {
-        return; // No processes to handle
+        return; 
     }
 
     if (Running_Process == NULL)
@@ -334,14 +335,16 @@ void handle_HPF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
         Running_Process = peek_PQ(pq);
         printf("New Running Process ID: %d, Priority: %d\n", Running_Process->id, Running_Process->priority);
     }
-
+    
     printf("Running Process ID: %d, Remaining Time: %d, Priority: %d\n", Running_Process->id, Running_Process->remainingtime, Running_Process->priority);
     run(Running_Process, clk);
+    
 
-    if (Running_Process->remainingtime == 0)
+    if (Running_Process->remainingtime <= 0)
     {
         printf("Process ID: %d has completed.\n", Running_Process->id);
         handle_process_completion(Running_Process, allWTA, allWT, clk);
+        Running_Process=NULL;
         dequeue_PQ(pq);
     }
 }
