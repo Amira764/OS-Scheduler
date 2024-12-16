@@ -30,14 +30,14 @@ void init_Scheduler(int argc, char *argv[]);
 void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list);
 void calculate_performance(float *allWTA, int *allWT, int handled_processes_count, int totalRunTime);
 void log_event(const char *event, Process *process, int clk);
-void run(Process *process);
+void run(Process *process, int clk);
 void fork_process(Process *process);
-void handle_process_stop(Process * process);
-void handle_process_completion(Process * process, float *allWTA, int *allWT);
-void handle_HPF(ProcessQueue *ready_queue, float *allWTA, int *allWT);
-void handle_SJF(ProcessQueue *ready_queue, float *allWTA, int *allWT);
-void handle_RR(ProcessQueue *ready_queue,int quatnum,  float *allWTA, int *allWT);
-void handle_MLFQ(float *allWTA, int *allWT ,int time_quantum);
+void handle_process_stop(Process * process, int clk);
+void handle_process_completion(Process * process, float *allWTA, int *allWT, int clk);
+void handle_HPF(ProcessQueue *ready_queue, float *allWTA, int *allWT, int clk);
+void handle_SJF(ProcessQueue *ready_queue, float *allWTA, int *allWT, int clk);
+void handle_RR(ProcessQueue *ready_queue,int quatnum,  float *allWTA, int *allWT, int clk);
+void handle_MLFQ(float *allWTA, int *allWT ,int time_quantum, int clk);
 void init_MLFQ(); 
 void redistributeProcessesByPriority(); 
 
@@ -82,16 +82,16 @@ int main(int argc, char *argv[])
             switch (scheduling_algorithm) 
             {
                 case 1:
-                    handle_SJF(&ready_list, allWTA, allWT);
+                    handle_SJF(&ready_list, allWTA, allWT, currentClk);
                     break;
                 case 2:
-                    handle_HPF(&ready_list, allWTA, allWT);
+                    handle_HPF(&ready_list, allWTA, allWT, currentClk);
                     break;
                 case 3:
-                    handle_RR(&ready_list,roundRobinSlice,allWTA,allWT);
+                    handle_RR(&ready_list,roundRobinSlice,allWTA,allWT, currentClk);
                     break;
                 case 4: 
-                    handle_MLFQ(allWTA,allWT,roundRobinSlice);
+                    handle_MLFQ(allWTA,allWT,roundRobinSlice, currentClk);
                     break;
                 default:
                     fprintf(stderr, "Invalid scheduling algorithm\n");
@@ -206,22 +206,22 @@ void fork_process(Process *process)
         }
         else
         { 
-            usleep(300000);   // give a chance for child process to start
+            usleep(500);   // give a chance for child process to start
             process->pid = pid; 
         }
     }
 }
 
 // Fork and run the process for a specified runtime, handling "resumed" events
-void run(Process *process) //called inside scheduling algorithms
+void run(Process *process, int clk) //called inside scheduling algorithms
 {
     if (process->state == 1) // Previously stopped (waiting state)
     { 
-        log_event("resumed", process, getClk());
+        log_event("resumed", process, clk);
     } // Log resumed event
     else if(process->remainingtime == process->runtime)// starting for the first time
     { 
-        log_event("started", process, getClk()); 
+        log_event("started", process, clk); 
         fork_process(process);
         add_to_PCB(process); // Add the process to the PCB table
     } // Log started event
@@ -232,11 +232,11 @@ void run(Process *process) //called inside scheduling algorithms
 }
 
 // Handle process preemption
-void handle_process_stop(Process * process)
+void handle_process_stop(Process * process, int clk)
 {
     // Preempted process, re-enqueue
     process->state = 1; // Waiting state
-    log_event("stopped", process, getClk()); // Log stopped event
+    log_event("stopped", process, clk); // Log stopped event
     switch (scheduling_algorithm) 
     {
         case 1:
@@ -258,20 +258,19 @@ void handle_process_stop(Process * process)
 }
 
 // Handle process completion 
-void handle_process_completion(Process * process, float *allWTA, int *allWT)
+void handle_process_completion(Process * process, float *allWTA, int *allWT, int clk)
 {
     // Process completed
     process->remainingtime = 0;
-    process->finishtime = getClk();
+    process->finishtime = clk;
     process->TA = process->finishtime - process->arrivaltime;
     process->WTA = (float)process->TA / process->runtime;
     process->waitingtime = process->TA - process->runtime;
+    log_event("finished", process, clk); // Log finished event
 
     // Populate allWTA and allWT arrays using process ID as the index
     allWTA[process->id] = process->WTA;
     allWT[process->id] = process->waitingtime;
-
-    log_event("finished", process, process->finishtime); // Log finished event
     remove_from_PCB(process->pid); // Remove from PCB table
     handled_processes_count++;
     Running_Process = NULL; 
@@ -283,12 +282,12 @@ void log_event(const char *event, Process *process, int clk)
     if (strcmp(event, "started") == 0 || strcmp(event, "resumed") == 0 || strcmp(event, "stopped") == 0) 
     {
         fprintf(schedulerLog, "At time %d process %d %s arr %d total %d remain %d wait %d\n",
-                clk, process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime);
+                clk-1, process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime);
     } 
     else if (strcmp(event, "finished") == 0) 
     {
         fprintf(schedulerLog, "At time %d process %d %s arr %d total %d remain %d wait %d TA %d WTA %.2f\n",
-                clk, process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime, process->TA, process->WTA);
+                clk-1, process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime, process->TA, process->WTA);
     }
 
 }
@@ -313,7 +312,7 @@ void calculate_performance(float *allWTA, int *allWT, int handled_processes_coun
     fprintf(perfLog, "Avg Waiting Time = %.2f\n", avgWT);
 }
 
-void handle_HPF(ProcessQueue *ready_queue, float *allWTA, int *allWT)
+void handle_HPF(ProcessQueue *ready_queue, float *allWTA, int *allWT, int clk)
 {
     if (isEmpty_ProcessQueue(ready_queue))
     {
@@ -345,7 +344,7 @@ void handle_HPF(ProcessQueue *ready_queue, float *allWTA, int *allWT)
     if (highest_priority_index != -1)
     {
         Process *highest_priority_process = ready_queue->items[highest_priority_index];
-        run(highest_priority_process);
+        run(highest_priority_process,clk);
         // If there is a currently running process, we check if preemption is needed
         if (Running_Process != NULL && Running_Process->remainingtime > 0)
         {
@@ -355,7 +354,7 @@ void handle_HPF(ProcessQueue *ready_queue, float *allWTA, int *allWT)
                 printf("Preempting process PID: %d with Priority: %d\n", Running_Process->pid, Running_Process->priority);
 
                 // Preempt the running process and put it back into the ready queue
-                handle_process_stop(Running_Process); // Stop the running process
+                handle_process_stop(Running_Process,clk); // Stop the running process
             }
         }
 
@@ -371,7 +370,7 @@ void handle_HPF(ProcessQueue *ready_queue, float *allWTA, int *allWT)
             if (highest_priority_index == ready_queue->front)
             {
                 Process *completed_process = dequeue_ProcessQueue(ready_queue);
-                handle_process_completion(completed_process, allWTA, allWT);
+                handle_process_completion(completed_process, allWTA, allWT,clk);
             }
             else
             {
@@ -389,7 +388,7 @@ void handle_HPF(ProcessQueue *ready_queue, float *allWTA, int *allWT)
     }
 }
 
-void handle_SJF(ProcessQueue *ready_queue, float *allWTA, int *allWT)
+void handle_SJF(ProcessQueue *ready_queue, float *allWTA, int *allWT, int clk)
 {
     if (isEmpty_ProcessQueue(ready_queue))
     {
@@ -421,7 +420,7 @@ void handle_SJF(ProcessQueue *ready_queue, float *allWTA, int *allWT)
 
     Process *shortest_process = ready_queue->items[shortest_index];
 
-    run(shortest_process);
+    run(shortest_process,clk);
 
     // Check if the process has completed or if we need to remove it
     if (shortest_process->remainingtime <= 0)
@@ -432,7 +431,7 @@ void handle_SJF(ProcessQueue *ready_queue, float *allWTA, int *allWT)
         if (shortest_index == ready_queue->front)
         {
             Process *completed_process = dequeue_ProcessQueue(ready_queue);
-            handle_process_completion(completed_process, allWTA, allWT);
+            handle_process_completion(completed_process, allWTA, allWT,clk);
         }
         else
         {
@@ -451,7 +450,7 @@ void handle_SJF(ProcessQueue *ready_queue, float *allWTA, int *allWT)
 }
 
 ////////////////////////////////////////////////////////////////////////////////RR//////////////////////////////////////////////////////
-void handle_RR(ProcessQueue *ready_queue, int quatnum,  float *allWTA, int *allWT)
+void handle_RR(ProcessQueue *ready_queue, int quatnum,  float *allWTA, int *allWT, int clk)
 {
     // Static variable to count the quantum time
     static int quantum_counter = 0;
@@ -469,7 +468,7 @@ void handle_RR(ProcessQueue *ready_queue, int quatnum,  float *allWTA, int *allW
 
     if (current_process->remainingtime > 0){
     // Run the process for one time slice (1 time step)
-    run(current_process);  // Call the run function to simulate process execution for 1 time unit
+    run(current_process,clk);  // Call the run function to simulate process execution for 1 time unit
 
      // Debugging: print the PID when the process is added
     printf("Running process with PID: %d to PCB\n", current_process->pid);
@@ -482,14 +481,14 @@ void handle_RR(ProcessQueue *ready_queue, int quatnum,  float *allWTA, int *allW
     if (current_process->remainingtime <= 0) {
          // Process has completed
          Process *completed_process = dequeue_ProcessQueue(ready_queue);
-         handle_process_completion(completed_process, allWTA, allWT);
+         handle_process_completion(completed_process, allWTA, allWT,clk);
          quantum_counter = 0;  // Reset the quantum counter for the next round of scheduling
     } 
     // Check if the process's quantum has been fully used (i.e., 1 time slice = quantum step)
     else if(quantum_counter == quatnum) {
         // Process is not finished, preempt it and place it back in the ready queue
          Process *preempted_process = dequeue_ProcessQueue(ready_queue);
-         handle_process_stop(preempted_process);
+         handle_process_stop(preempted_process,clk);
         // enqueue_ProcessQueue(ready_queue, *preempted_process);  // Re-enqueue the process for later execution
          quantum_counter = 0;  // Reset the quantum counter for the next round of scheduling
      }
@@ -505,7 +504,7 @@ void init_MLFQ() {
     }
 }
 
-void handle_MLFQ(float *allWTA, int *allWT, int time_quantum) 
+void handle_MLFQ(float *allWTA, int *allWT, int time_quantum, int clk) 
 {
     static int time_remaining = 0;
     static int processesRunInLevel10 = 0;  
@@ -544,13 +543,13 @@ void handle_MLFQ(float *allWTA, int *allWT, int time_quantum)
     // Run the selected process
     if (Running_Process->remainingtime > 0) {
         printf("Running process with ID = %d, time_remaining = %d, level = %d\n", Running_Process->id, time_remaining, currentLevel);
-        run(Running_Process);
+        run(Running_Process,clk);
         time_remaining--;
     }
     // Handle process completion
     if (Running_Process->remainingtime <= 0) {
         printf("Process with ID = %d completed, remaining time = %d\n", Running_Process->id, Running_Process->remainingtime);
-        handle_process_completion(Running_Process, allWTA, allWT);
+        handle_process_completion(Running_Process, allWTA, allWT,clk);
         free(Running_Process);
         Running_Process = NULL;
         time_remaining = 0;
@@ -566,7 +565,7 @@ void handle_MLFQ(float *allWTA, int *allWT, int time_quantum)
             enqueue_linkedlist(&levels[10], *Running_Process);
             //printf("Process with ID = %d moved to level 10\n", Running_Process->id);
         }
-        handle_process_stop(Running_Process);
+        handle_process_stop(Running_Process,clk);
         if (currentLevel==10)
         {
             printf("Process runned = %d , level size = %d \n", processesRunInLevel10 , getLevelSize(levels[10]));
