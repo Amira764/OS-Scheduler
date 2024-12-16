@@ -240,7 +240,8 @@ void fork_process(Process *process)
 // Fork and run the process for a specified runtime, handling "resumed" events
 void run(Process *process) //called inside scheduling algorithms
 {
-    printf("ana f awl el run\n");
+    printf("ana f awl el run w bwreki el process\n");
+    print_process(*process);
     if (process->state == 1) // Previously stopped (waiting state)
     { 
         printf("ana fl resume\n");
@@ -264,6 +265,8 @@ void handle_process_stop(Process * process)
 {
     // Preempted process, re-enqueue
     process->state = 1; // Waiting state
+    printf("ana ba.stop w bwreki el state aho zy el shater\n");
+    print_process(*process);
     log_event("stopped", process); // Log stopped event
     switch (scheduling_algorithm) 
     {
@@ -369,7 +372,6 @@ void handle_RR(ProcessQueue *ready_queue, int quatnum,  float *allWTA, int *allW
     // Run the fisrst process from the ready queue
     Process *current_process = peek_ProcessQueue(ready_queue);
 
-
      // Check if the process has finished its remaining time
     if (current_process->remainingtime <= 0) {
          // Process has completed
@@ -403,7 +405,6 @@ void handle_RR(ProcessQueue *ready_queue, int quatnum,  float *allWTA, int *allW
      // Debugging: print the PID when the process is added
     printf("Running process with PID: %d to PCB\n", current_process->pid);
 
-    
     // Increment the quantum counter
     quantum_counter++;
 }
@@ -416,7 +417,8 @@ void init_MLFQ() {
     }
 }
 
-void handle_MLFQ(float *allWTA, int *allWT, int time_quantum) {
+void handle_MLFQ(float *allWTA, int *allWT, int time_quantum) 
+{
     static int time_remaining = 0;
     static int processesRunInLevel10 = 0;  
     static int currentLevel = 0;
@@ -471,6 +473,7 @@ void handle_MLFQ(float *allWTA, int *allWT, int time_quantum) {
     // Handle process preemption (time slice expired)
     else if (time_remaining == 0) {
         //printf("Process with ID = %d preempted, demoting to next level.\n", Running_Process->id);
+        Running_Process->state = 1;
         if (currentLevel + 1 < NUM_LEVELS) {
             enqueue_linkedlist(&levels[currentLevel + 1], *Running_Process);
             //printf("Demoted process with ID = %d to level %d\n", Running_Process->id, currentLevel + 1);
@@ -496,7 +499,8 @@ void handle_MLFQ(float *allWTA, int *allWT, int time_quantum) {
 
 }
 
-void redistributeProcessesByPriority() {
+void redistributeProcessesByPriority() 
+{
     printf("DISTRUBUTEEE \n");
     Node *dummy_level10 = NULL;
     int level10_size = getLevelSize(levels[10]);

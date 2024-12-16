@@ -19,3 +19,10 @@ mimo:
 	./test_generator.out
 	clear
 	./process_generator.out processes.txt -sch 4 -q 10
+
+rehab: 
+	clear
+	make all 
+	./test_generator.out
+	clear
+	./process_generator.out processes.txt -sch 3 -q 10
