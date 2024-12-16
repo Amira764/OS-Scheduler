@@ -468,6 +468,20 @@ void handle_RR(ProcessQueue *ready_queue, int quatnum,  float *allWTA, int *allW
     // Run the fisrst process from the ready queue
     Process *current_process = peek_ProcessQueue(ready_queue);
 
+    // Calculate the quantum for this process (minimum of remaining time and time slice)
+    int time_to_run = (current_process->remainingtime < quatnum) ? current_process->remainingtime : quatnum;
+
+    if (current_process->remainingtime > 0){
+    // Run the process for one time slice (1 time step)
+    run(current_process);  // Call the run function to simulate process execution for 1 time unit
+
+     // Debugging: print the PID when the process is added
+    printf("Running process with PID: %d to PCB\n", current_process->pid);
+    
+    // Increment the quantum counter
+    quantum_counter++;
+    }
+
      // Check if the process has finished its remaining time
     if (current_process->remainingtime <= 0) {
          // Process has completed
@@ -484,24 +498,8 @@ void handle_RR(ProcessQueue *ready_queue, int quatnum,  float *allWTA, int *allW
          quantum_counter = 0;  // Reset the quantum counter for the next round of scheduling
      }
 
-
-    if (isEmpty_ProcessQueue(ready_queue)) {
-        return;  // No process to run
-    }
- 
-    // Run the fisrst process from the ready queue
-    current_process = peek_ProcessQueue(ready_queue);
-
-
-    // Calculate the quantum for this process (minimum of remaining time and time slice)
-    int time_to_run = (current_process->remainingtime < quatnum) ? current_process->remainingtime : quatnum;
-    
-    // Run the process for one time slice (1 time step)
-    run(current_process);  // Call the run function to simulate process execution for 1 time unit
-
-    // Increment the quantum counter
-    quantum_counter++;
 }
+
 
 /////////////////////////////////////////////// MLFQ ///////////////////////////////////////////////////////////////////////////
 // Initialize all levels to empty linked lists
