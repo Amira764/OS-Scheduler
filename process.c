@@ -11,11 +11,11 @@ void decrementTime(int signum)
 
 int main(int agrc, char * argv[])
 {
-    printf("ana d5lt el process.c weeeeeee w da el pid bta3y %d\n", getpid());
+    printf("ana d5lt el process.c weeeeeee w da el pid bta3y %d %d\n", getpid(), getppid());
     remainingtime = atoi(argv[1]);
     //printf("Scheduler: process with id: %d is ready with remaining time  %d \n", getpid() , remainingtime);
     
-    signal(SIGINT, decrementTime);
+    signal(SIGTERM, decrementTime);
 
     initClk();
     //remaining time will be passed from the scheduler
@@ -26,6 +26,7 @@ int main(int agrc, char * argv[])
         //still running
     }
     //change color to purple
+    // kill(SIGUSR2, getppid());
     printf("\033[0;35m");
     printf("Scheduler: process with id: %d has finished\n", getpid());
     printf("\033[0m");
