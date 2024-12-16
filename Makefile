@@ -26,3 +26,15 @@ RR:
 	./test_generator.out
 	clear
 	./process_generator.out processes.txt -sch 3 -q 10
+
+SJF: 
+	clear
+	make all 
+	./test_generator.out
+	./process_generator.out processes.txt -sch 1 
+
+HPF:
+	clear
+	make all 
+	./test_generator.out
+	./process_generator.out processes.txt -sch 2

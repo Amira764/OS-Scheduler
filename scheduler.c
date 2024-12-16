@@ -4,7 +4,7 @@
 #include <string.h>
 #include <sys/wait.h>
 #include "LinkedList.h"
-
+#include <limits.h>
 
 struct msgbuff
 {
@@ -33,8 +33,8 @@ void run(Process *process);
 void fork_process(Process *process);
 void handle_process_stop(Process * process);
 void handle_process_completion(Process * process, float *allWTA, int *allWT);
-void handle_HPF();
-void handle_SJF();
+void handle_HPF(ProcessQueue *ready_queue, float *allWTA, int *allWT);
+void handle_SJF(ProcessQueue *ready_queue, float *allWTA, int *allWT);
 void handle_RR(ProcessQueue *ready_queue,int quatnum,  float *allWTA, int *allWT);
 
 /////////////////////////////////////////////////////////MLFQ////////////////////////////////////////////////////////////
@@ -87,10 +87,10 @@ int main(int argc, char *argv[])
             switch (scheduling_algorithm) 
             {
                 case 1:
-                    handle_SJF();
+                    handle_SJF(&ready_list, allWTA, allWT);
                     break;
                 case 2:
-                    handle_HPF();
+                    handle_HPF(&ready_list, allWTA, allWT);
                     break;
                 case 3:
                     handle_RR(&ready_list,roundRobinSlice,allWTA,allWT);
@@ -171,10 +171,10 @@ void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list)
         switch (scheduling_algorithm) 
         {
             case 1:
-                //TODO: insert in SJF (Dandon);
+                enqueue_ProcessQueue(ready_list, message.mtext);
                 break;
             case 2:
-                //TODO: insert in HPF (Dandon);
+                enqueue_ProcessQueue(ready_list, message.mtext);
                 break;
             case 3:
                 enqueue_ProcessQueue(ready_list, message.mtext); // Add to ready queue
@@ -245,13 +245,13 @@ void handle_process_stop(Process * process)
     switch (scheduling_algorithm) 
     {
         case 1:
-            //TODO: insert in SJF (Dandon);
+            enqueue_ProcessQueue(&ready_list, *process);
             break;
         case 2:
-            //TODO: insert in HPF (Dandon);
+            enqueue_ProcessQueue(&ready_list, *process);
             break;
         case 3:
-            enqueue_ProcessQueue(&ready_list, *process); //return to ready list -> debatable
+            enqueue_ProcessQueue(&ready_list, *process); 
             break;
         case 4:
             break;
