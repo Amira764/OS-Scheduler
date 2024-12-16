@@ -12,3 +12,17 @@ all: clean build
 
 run:
 	./process_generator.out
+
+MLFQ: 
+	clear
+	make all 
+	./test_generator.out
+	clear
+	./process_generator.out processes.txt -sch 4 -q 10
+
+RR: 
+	clear
+	make all 
+	./test_generator.out
+	clear
+	./process_generator.out processes.txt -sch 3 -q 10

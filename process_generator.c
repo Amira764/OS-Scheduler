@@ -1,5 +1,6 @@
 #include "headers.h"
 #include <string.h>
+#include <signal.h>
 #include "ProcessQueue.h"
 
 void clearResources(int);
@@ -18,13 +19,10 @@ struct msgbuff
 int main(int argc, char *argv[])
 {
     signal(SIGINT, clearResources);
-
-    // Variables to store parsed values
     char *inputFileName = NULL;
     int scheduling_algorithm = -1;
     int quantum = 0;
 
-    // Parse the command-line arguments
     parseArguments(argc, argv, &inputFileName, &scheduling_algorithm, &quantum);
 
     // TODO Initialization
@@ -59,10 +57,10 @@ int main(int argc, char *argv[])
         p.runtime = atoi(strtok(NULL, "\t")); // Save third token: runtime
         p.priority = atoi(strtok(NULL, "\t")); // Save fourth token: priority
         p.remainingtime = p.runtime;
+        p.waitingtime = 0;
         enqueue_ProcessQueue(&Processes, p);
-        Nprocesses++;
     }
-
+    print_ProcessQueue(&Processes, Nprocesses);
     // 2. Read the chosen scheduling algorithm and its parameters, if there are any from the argument list.
     // 3. Initiate and create the scheduler and clock processes.
     clk_pid = fork();
@@ -104,7 +102,6 @@ int main(int argc, char *argv[])
             process_in_turn = dequeue_ProcessQueue(&Processes);
             message.mtext = *process_in_turn;
             msgsnd(qid, &message, sizeof(message.mtext), IPC_NOWAIT);
-            printf("sending %d", message.mtext.id);
         }
     }
 
@@ -125,7 +122,6 @@ void clearResources(int signum)
     destroyClk(true);
     exit(0);
 }
-
 
 // Function to parse command-line arguments
 void parseArguments(int argc, char *argv[], char **inputFile, int *scheduling_algorithm, int *quantum)

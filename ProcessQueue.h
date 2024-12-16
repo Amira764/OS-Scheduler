@@ -142,3 +142,33 @@ void free_ProcessQueue(ProcessQueue *queue)
     queue->front = -1;
     queue->rear = -1;
 }
+
+// Function to print the contents of the process queue
+void print_ProcessQueue(ProcessQueue *queue, int size)
+{
+    if (isEmpty_ProcessQueue(queue))
+    {
+        printf("Process queue is empty.\n");
+        return;
+    }
+
+    printf("Process Queue:\n");
+    printf("ID\tPID\tArrival\tRuntime\tPriority\tRemaining\tWaiting\tState\n");
+
+    int i = queue->front;
+    do
+    {
+        Process *process = queue->items[i];
+        printf("%d\t%d\t%d\t%d\t%d\t\t%d\t\t%d\t%d\n",
+               process->id,
+               process->pid,
+               process->arrivaltime,
+               process->runtime,
+               process->priority,
+               process->remainingtime,
+               process->waitingtime,
+               process->state);
+
+        i = (i + 1) % queue->size; // Move to the next process
+    } while (i != (queue->rear + 1) % queue->size); // Stop when we've printed all elements
+}
