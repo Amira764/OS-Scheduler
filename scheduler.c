@@ -21,6 +21,7 @@ int roundRobinSlice;
 int active_time;                // Tracks CPU active time for performance calculation       
 FILE *schedulerLog, *perfLog; 
 ProcessQueue ready_list;      // Ready queue to store processes
+pid_t scheduler_pid;
 
 // Function Prototypes
 void init_Scheduler(int argc, char *argv[]);
@@ -49,6 +50,8 @@ void redistributeProcessesByPriority();
 
 int main(int argc, char *argv[])
 {
+    scheduler_pid = getpid();
+    printf("ANA SCHEDULER W DA EL PID BTA3YYYYY %d\n", scheduler_pid);
     initClk();
 
     // Initialize scheduler
@@ -116,7 +119,7 @@ int main(int argc, char *argv[])
     fclose(perfLog);
     msgctl(qid_generator, IPC_RMID, NULL);
     free_PCB(); // Free dynamically allocated PCB table
-    kill(SIGINT, getppid());
+    kill(getppid(),SIGINT); //check this for el tarteeb
     destroyClk(true);
     return 0;
 }
@@ -169,7 +172,7 @@ void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list)
     while (msgrcv(msg_queue_id, &message, sizeof(Process), 0, IPC_NOWAIT) != -1) 
     {
         active_time += message.mtext.runtime;
-        fork_process(&message.mtext); //fork the process
+        // fork_process(&message.mtext); //fork the process
         switch (scheduling_algorithm) 
         {
             case 1:
@@ -196,36 +199,41 @@ void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list)
 
 void fork_process(Process *process)
 {
-    int pid = fork();
-    if(pid==0)
+    if(getpid()==scheduler_pid) //only scheduler can fork new processes
     {
-        char remtime[20];
-        sprintf(remtime, "%d", process->remainingtime);
-        char *args[] = {"./process.out", remtime, NULL};
-        execv("./process.out", args);
+        printf("ana fl fork\n");
+        pid_t pid = fork();
+        printf("da el pid el ana 3mltlo fork w da ana %d %d \n", pid, getpid());
+        if(pid==0)
+        {
+            process->pid = getpid();
+            printf("ana ray7 a.run process.c\n");
+            char remtime[20];
+            sprintf(remtime, "%d", process->remainingtime);
+            char *args[] = {"./process.out", remtime, NULL};
+            execv("./process.out", args);
+        }
     }
-    if(pid!=0) // Parent (Scheduler)
-    { 
-        process->pid = pid; 
-        add_to_PCB(process);
-    } // Store PID in PCB
-    
 }
 
 // Fork and run the process for a specified runtime, handling "resumed" events
 void run(Process *process) //called inside scheduling algorithms
 {
-    //if(process->pid == getpid())
-    //{
-        //add_to_PCB(process); // Add the process to the PCB table
-        if (process->state == 1) // Previously stopped (waiting state)
-        { log_event("resumed", process); } // Log resumed event
-        else // Child process
-        { log_event("started", process); } // Log started event
-        kill(SIGUSR1,getpid());
-        process->remainingtime--;
-        Running_Process = process; //can be removed later
-    //}
+    if (process->state == 1) // Previously stopped (waiting state)
+    { 
+        log_event("resumed", process); //why is this never logged ?
+    } // Log resumed event
+    else if(process->remainingtime == process->runtime)// starting for the first time
+    { 
+        fork_process(process);
+        log_event("started", process); 
+        add_to_PCB(process); // Add the process to the PCB table
+    } // Log started event
+    process->state = 0;
+    kill(process->pid,SIGINT);
+    printf("ana fl run w el pid bta3y %d %d\n", process->pid, getpid());
+    process->remainingtime--;
+    Running_Process = process; //can be removed later
 }
 
 // Handle process preemption
@@ -233,24 +241,24 @@ void handle_process_stop(Process * process)
 {
     // Preempted process, re-enqueue
     process->state = 1; // Waiting state
-    switch (scheduling_algorithm) 
-        {
-            case 1:
-                //TODO: insert in SJF (Dandon);
-                break;
-            case 2:
-                //TODO: insert in HPF (Dandon);
-                break;
-            case 3:
-                enqueue_ProcessQueue(&ready_list, *process); //return to ready list -> debatable
-                break;
-            case 4:
-                break;
-            default:
-                fprintf(stderr, "Invalid scheduling algorithm\n");
-                exit(EXIT_FAILURE);
-        }
     log_event("stopped", process); // Log stopped event
+    switch (scheduling_algorithm) 
+    {
+        case 1:
+            //TODO: insert in SJF (Dandon);
+            break;
+        case 2:
+            //TODO: insert in HPF (Dandon);
+            break;
+        case 3:
+            enqueue_ProcessQueue(&ready_list, *process); //return to ready list -> debatable
+            break;
+        case 4:
+            break;
+        default:
+            fprintf(stderr, "Invalid scheduling algorithm\n");
+            exit(EXIT_FAILURE);
+    }
     Running_Process = NULL; //can be removed later
 }
 
@@ -356,7 +364,7 @@ void handle_RR(ProcessQueue *ready_queue, int quatnum,  float *allWTA, int *allW
     }
  
     // Run the fisrst process from the ready queue
-     current_process = peek_ProcessQueue(ready_queue);
+    current_process = peek_ProcessQueue(ready_queue);
 
 
     // Calculate the quantum for this process (minimum of remaining time and time slice)
@@ -416,7 +424,7 @@ void handle_MLFQ(float *allWTA, int *allWT, int time_quantum) {
         return; // Nothing to execute
     }
 
-    print_process(*Running_Process);
+    print_process(*Running_Process); //3yza ashof hagat extra
 
     // Run the selected process
     if (Running_Process->remainingtime > 0) {

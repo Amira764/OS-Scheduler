@@ -59,10 +59,10 @@ int main(int argc, char *argv[])
         p.runtime = atoi(strtok(NULL, "\t")); // Save third token: runtime
         p.priority = atoi(strtok(NULL, "\t")); // Save fourth token: priority
         p.remainingtime = p.runtime;
+        p.waitingtime = 0;
         enqueue_ProcessQueue(&Processes, p);
-        Nprocesses++;
     }
-
+    print_ProcessQueue(&Processes, Nprocesses);
     // 2. Read the chosen scheduling algorithm and its parameters, if there are any from the argument list.
     // 3. Initiate and create the scheduler and clock processes.
     clk_pid = fork();
@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
         char N[12];
         char RRslice[12];
         sprintf(algorithm, "%d", scheduling_algorithm);
-        sprintf(N, "%d", Nprocesses/2);
+        sprintf(N, "%d", Nprocesses);
         sprintf(RRslice, "%d", quantum);
         char *args[] = {"./scheduler.out", algorithm, N, RRslice, NULL};
         execv("./scheduler.out", args);
@@ -125,7 +125,6 @@ void clearResources(int signum)
     destroyClk(true);
     exit(0);
 }
-
 
 // Function to parse command-line arguments
 void parseArguments(int argc, char *argv[], char **inputFile, int *scheduling_algorithm, int *quantum)
