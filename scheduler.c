@@ -23,6 +23,7 @@ int active_time;                // Tracks CPU active time for performance calcul
 FILE *schedulerLog, *perfLog; 
 ProcessQueue ready_list;      // Ready queue to store processes
 pid_t scheduler_pid;
+Node *levels[NUM_LEVELS];     // Declare and initialize queues for each level
 
 // Function Prototypes
 void init_Scheduler(int argc, char *argv[]);
@@ -36,16 +37,10 @@ void handle_process_completion(Process * process, float *allWTA, int *allWT);
 void handle_HPF(ProcessQueue *ready_queue, float *allWTA, int *allWT);
 void handle_SJF(ProcessQueue *ready_queue, float *allWTA, int *allWT);
 void handle_RR(ProcessQueue *ready_queue,int quatnum,  float *allWTA, int *allWT);
-
-/////////////////////////////////////////////////////////MLFQ////////////////////////////////////////////////////////////
-// Declare and initialize queues for each level
-Node *levels[NUM_LEVELS];
-
-// Function Prototypes
-void init_MLFQ(); 
 void handle_MLFQ(float *allWTA, int *allWT ,int time_quantum);
+void init_MLFQ(); 
 void redistributeProcessesByPriority(); 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 int main(int argc, char *argv[])
 {
@@ -211,7 +206,7 @@ void fork_process(Process *process)
         }
         else
         { 
-            sleep(1); // give a chance for child process to start
+            usleep(300000);   // give a chance for child process to start
             process->pid = pid; 
         }
     }
@@ -288,17 +283,12 @@ void log_event(const char *event, Process *process, int clk)
     if (strcmp(event, "started") == 0 || strcmp(event, "resumed") == 0 || strcmp(event, "stopped") == 0) 
     {
         fprintf(schedulerLog, "At time %d process %d %s arr %d total %d remain %d wait %d\n",
-                clk-1, process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime);
+                clk, process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime);
     } 
-    else if(strcmp(event, "finished") == 0 && Nprocesses==handled_processes_count)
-    {
-      fprintf(schedulerLog, "At time %d process %d %s arr %d total %d remain %d wait %d TA %d WTA %.2f\n",
-                clk+1, process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime, process->TA, process->WTA);
-    }
     else if (strcmp(event, "finished") == 0) 
     {
         fprintf(schedulerLog, "At time %d process %d %s arr %d total %d remain %d wait %d TA %d WTA %.2f\n",
-                clk-1, process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime, process->TA, process->WTA);
+                clk, process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime, process->TA, process->WTA);
     }
 
 }
