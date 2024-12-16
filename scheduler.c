@@ -36,8 +36,8 @@ void run(Process *process, int clk);
 void fork_process(Process *process);
 void handle_process_stop(Process *process, int clk);
 void handle_process_completion(Process *process, float *allWTA, int *allWT, int clk);
-void handle_HPF(PriorityQueue *pq , float *allWTA, int *allWT, int clk);
-void handle_SJF(ProcessQueue *ready_queue, float *allWTA, int *allWT, int clk);
+void handle_HPF(PriorityQueue *pq, float *allWTA, int *allWT, int clk);
+void handle_SJF(PriorityQueue *pq, float *allWTA, int *allWT, int clk);
 void handle_RR(ProcessQueue *ready_queue, int quatnum, float *allWTA, int *allWT, int clk);
 void handle_MLFQ(float *allWTA, int *allWT, int time_quantum, int clk);
 void init_MLFQ();
@@ -83,10 +83,10 @@ int main(int argc, char *argv[])
             switch (scheduling_algorithm)
             {
             case 1:
-                handle_SJF(&ready_list, allWTA, allWT, currentClk);
+                handle_SJF(&pq, allWTA, allWT, currentClk);
                 break;
             case 2:
-                handle_HPF(&pq,allWTA, allWT, currentClk);
+                handle_HPF(&pq, allWTA, allWT, currentClk);
                 break;
             case 3:
                 handle_RR(&ready_list, roundRobinSlice, allWTA, allWT, currentClk);
@@ -167,10 +167,10 @@ void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list)
         switch (scheduling_algorithm)
         {
         case 1:
-            enqueue_PQ(&pq, message.mtext , false);
+            enqueue_PQ(&pq, message.mtext, false);
             break;
         case 2:
-            enqueue_PQ(&pq, message.mtext , true);
+            enqueue_PQ(&pq, message.mtext, true);
             break;
         case 3:
             enqueue_ProcessQueue(ready_list, message.mtext); // Add to ready queue
@@ -242,10 +242,10 @@ void handle_process_stop(Process *process, int clk)
     switch (scheduling_algorithm)
     {
     case 1:
-        enqueue_PQ(&pq, *process , false);
+        enqueue_PQ(&pq, *process, false);
         break;
     case 2:
-        enqueue_PQ(&pq, *process , true);
+        enqueue_PQ(&pq, *process, true);
         break;
     case 3:
         enqueue_ProcessQueue(&ready_list, *process);
@@ -318,7 +318,11 @@ void handle_HPF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
 {
     if (isEmpty_PQ(pq))
     {
+<<<<<<< HEAD
         return; 
+=======
+        return;
+>>>>>>> adae0c2 (araf)
     }
 
     if (Running_Process == NULL)
@@ -344,83 +348,50 @@ void handle_HPF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
     {
         printf("Process ID: %d has completed.\n", Running_Process->id);
         handle_process_completion(Running_Process, allWTA, allWT, clk);
+<<<<<<< HEAD
         Running_Process=NULL;
+=======
+        Running_Process = NULL;
+>>>>>>> adae0c2 (araf)
         dequeue_PQ(pq);
     }
 }
 
-
-void handle_SJF(ProcessQueue *ready_queue, float *allWTA, int *allWT, int clk)
+void handle_SJF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
 {
-    if (isEmpty_ProcessQueue(ready_queue))
+    if (isEmpty_PQ(pq))
     {
-        return;
+        return; // No processes to handle
     }
 
-    printf("get clock = %d\n", getClk());
-
-    int shortest_index = -1;
-    int shortest_time = __INT_MAX__;
-    int earliest_arrival_time = __INT_MAX__;
-
-    printf("Searching for the shortest process...\n");
-
-    ///////////////only preempt if arrival times are equal//////////////////////////
-    for (int i = ready_queue->front; i <= ready_queue->rear; i++)
+    if (Running_Process == NULL)
     {
-        Process *current_process = ready_queue->items[i];
-
-        // Debug: Log the current process being checked
-        printf("Checking process PID: %d, Arrival Time: %d, Remaining Time: %d\n",
-               current_process->pid, current_process->arrivaltime, current_process->remainingtime);
-
-        // preempt///
-        if (current_process->arrivaltime < earliest_arrival_time)
-        {
-            earliest_arrival_time = current_process->arrivaltime;
-            shortest_time = current_process->remainingtime;
-            shortest_index = i;
-        }
-        else if (current_process->arrivaltime == earliest_arrival_time)
-        {
-            // if arrival times are the same; compare
-            if (current_process->remainingtime < shortest_time)
-            {
-                shortest_time = current_process->remainingtime;
-                shortest_index = i;
-            }
-        }
+        Running_Process = peek_PQ(pq);
+        printf("Initial Running Process PID: %d, remaining time: %d\n", Running_Process->pid, Running_Process->remainingtime);
     }
 
-    Process *shortest_process = ready_queue->items[shortest_index];
-
-    run(shortest_process, clk);
-
-    // Check if the process has completed or if we need to remove it
-    if (shortest_process->remainingtime <= 0)
+    if ((Running_Process->arrivaltime == peek_PQ(pq)->arrivaltime) && (Running_Process->remainingtime > peek_PQ(pq)->remainingtime))
     {
-        printf("Process PID: %d has completed.\n", shortest_process->pid);
+        printf("Preempting process ID: %d with remaining time: %d\n", Running_Process->id, Running_Process->remainingtime);
+        handle_process_stop(Running_Process, clk);
 
-        // Remove the completed process from the queue
-        if (shortest_index == ready_queue->front)
-        {
-            Process *completed_process = dequeue_ProcessQueue(ready_queue);
-            handle_process_completion(completed_process, allWTA, allWT, clk);
-        }
-        else
-        {
-            // Shift processes accordingly to remove the completed process
-            for (int i = shortest_index; i < ready_queue->rear; i++)
-            {
-                ready_queue->items[i] = ready_queue->items[i + 1];
-            }
-            ready_queue->rear--;
-        }
-        return; // Exit after handling the completed process
+        Running_Process = peek_PQ(pq);
+        printf("New Running Process ID: %d, remaining time: %d\n", Running_Process->id, Running_Process->remainingtime);
     }
 
-    // Run the shortest process
-    printf("Running process PID: %d, Remaining Time: %d\n", shortest_process->pid, shortest_process->remainingtime);
+    if (Running_Process->remainingtime != 0)
+    {
+        printf("Running Process ID: %d, Remaining Time: %d\n", Running_Process->id, Running_Process->remainingtime);
+        run(Running_Process, clk);
+    }
+
+    if (Running_Process->remainingtime <= 0)
+    {
+        printf("Process ID: %d has completed.\n", Running_Process->id);
+        handle_process_completion(Running_Process, allWTA, allWT, clk);
+        Running_Process = NULL;
+        dequeue_PQ(pq);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////RR//////////////////////////////////////////////////////
