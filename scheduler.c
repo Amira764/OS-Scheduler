@@ -28,7 +28,7 @@ pid_t scheduler_pid;
 void init_Scheduler(int argc, char *argv[]);
 void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list);
 void calculate_performance(float *allWTA, int *allWT, int handled_processes_count, int totalRunTime);
-void log_event(const char *event, Process *process);
+void log_event(const char *event, Process *process, int clk);
 void run(Process *process);
 void fork_process(Process *process);
 void handle_process_stop(Process * process);
@@ -222,11 +222,11 @@ void run(Process *process) //called inside scheduling algorithms
 {
     if (process->state == 1) // Previously stopped (waiting state)
     { 
-        log_event("resumed", process);
+        log_event("resumed", process, getClk());
     } // Log resumed event
     else if(process->remainingtime == process->runtime)// starting for the first time
     { 
-        log_event("started", process); 
+        log_event("started", process, getClk()); 
         fork_process(process);
         add_to_PCB(process); // Add the process to the PCB table
     } // Log started event
@@ -241,7 +241,7 @@ void handle_process_stop(Process * process)
 {
     // Preempted process, re-enqueue
     process->state = 1; // Waiting state
-    log_event("stopped", process); // Log stopped event
+    log_event("stopped", process, getClk()); // Log stopped event
     switch (scheduling_algorithm) 
     {
         case 1:
@@ -276,25 +276,31 @@ void handle_process_completion(Process * process, float *allWTA, int *allWT)
     allWTA[process->id] = process->WTA;
     allWT[process->id] = process->waitingtime;
 
-    log_event("finished", process); // Log finished event
+    log_event("finished", process, process->finishtime); // Log finished event
     remove_from_PCB(process->pid); // Remove from PCB table
     handled_processes_count++;
     Running_Process = NULL; 
 }
 
 // Log an event with relevant details
-void log_event(const char *event, Process *process)
+void log_event(const char *event, Process *process, int clk)
 {
     if (strcmp(event, "started") == 0 || strcmp(event, "resumed") == 0 || strcmp(event, "stopped") == 0) 
     {
         fprintf(schedulerLog, "At time %d process %d %s arr %d total %d remain %d wait %d\n",
-                getClk(), process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime);
+                clk-1, process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime);
     } 
+    else if(strcmp(event, "finished") == 0 && Nprocesses==handled_processes_count)
+    {
+      fprintf(schedulerLog, "At time %d process %d %s arr %d total %d remain %d wait %d TA %d WTA %.2f\n",
+                clk+1, process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime, process->TA, process->WTA);
+    }
     else if (strcmp(event, "finished") == 0) 
     {
         fprintf(schedulerLog, "At time %d process %d %s arr %d total %d remain %d wait %d TA %d WTA %.2f\n",
-                getClk(), process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime, process->TA, process->WTA);
+                clk-1, process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime, process->TA, process->WTA);
     }
+
 }
 
 // Calculate performance metrics
