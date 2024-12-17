@@ -208,7 +208,7 @@ void fork_process(Process *process)
         }
         else
         {
-            usleep(500); // give a chance for child process to start
+            usleep(50000); // give a chance for child process to start
             process->pid = pid;
         }
     }
