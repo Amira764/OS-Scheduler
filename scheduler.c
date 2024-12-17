@@ -351,41 +351,24 @@ void handle_SJF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
 {
     if (isEmpty_PQ(pq) && Running_Process == NULL)
     {
-        return; // No processes to handle
+        return;
     }
-
-    print_process(*Running_Process);
-    print_process(*peek_PQ(pq));
 
     if (Running_Process == NULL)
     {
-        Running_Process = peek_PQ(pq);
-        printf("Initial Running Process PID: %d, remaining time: %d\n", Running_Process->pid, Running_Process->remainingtime);
-        print_process(*Running_Process);
-        print_process(*peek_PQ(pq));
+        Running_Process = dequeue_PQ(pq);
+        printf("Initial Running Process PID: %d, Priority: %d\n", Running_Process->pid, Running_Process->priority);
     }
 
-    if ((Running_Process->arrivaltime == peek_PQ(pq)->arrivaltime) && (Running_Process->remainingtime > peek_PQ(pq)->remainingtime))
-    {
-        printf("Preempting process ID: %d with remaining time: %d\n", Running_Process->id, Running_Process->remainingtime);
-        handle_process_stop(Running_Process, clk);
-
-        Running_Process = peek_PQ(pq);
-        printf("New Running Process ID: %d, remaining time: %d\n", Running_Process->id, Running_Process->remainingtime);
-    }
-
-    if (Running_Process->remainingtime != 0)
-    {
-        printf("Running Process ID: %d, Remaining Time: %d\n", Running_Process->id, Running_Process->remainingtime);
-        run(Running_Process, clk);
-    }
+    printf("Running Process ID: %d, Remaining Time: %d, Priority: %d\n", Running_Process->id, Running_Process->remainingtime, Running_Process->priority);
+    run(Running_Process, clk);
 
     if (Running_Process->remainingtime <= 0)
     {
         printf("Process ID: %d has completed.\n", Running_Process->id);
         handle_process_completion(Running_Process, allWTA, allWT, clk);
         Running_Process = NULL;
-        dequeue_PQ(pq);
+        // dequeue_PQ(pq);
     }
 }
 
