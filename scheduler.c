@@ -315,23 +315,23 @@ void calculate_performance(float *allWTA, int *allWT, int handled_processes_coun
 
 void handle_HPF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
 {
-    if (isEmpty_PQ(pq))
+    if (isEmpty_PQ(pq) && Running_Process == NULL)
     {
         return;
     }
 
     if (Running_Process == NULL)
     {
-        Running_Process = peek_PQ(pq);
+        Running_Process = dequeue_PQ(pq);
         printf("Initial Running Process PID: %d, Priority: %d\n", Running_Process->pid, Running_Process->priority);
     }
 
-    if (Running_Process->priority > peek_PQ(pq)->priority)
+    if (!(isEmpty_PQ(pq)) && (Running_Process->priority > peek_PQ(pq)->priority))
     {
         printf("Preempting process ID: %d with Priority: %d\n", Running_Process->id, Running_Process->priority);
         handle_process_stop(Running_Process, clk);
 
-        Running_Process = peek_PQ(pq);
+        Running_Process = dequeue_PQ(pq);
         printf("New Running Process ID: %d, Priority: %d\n", Running_Process->id, Running_Process->priority);
     }
 
@@ -343,21 +343,26 @@ void handle_HPF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
         printf("Process ID: %d has completed.\n", Running_Process->id);
         handle_process_completion(Running_Process, allWTA, allWT, clk);
         Running_Process = NULL;
-        dequeue_PQ(pq);
+        // dequeue_PQ(pq);
     }
 }
 
 void handle_SJF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
 {
-    if (isEmpty_PQ(pq))
+    if (isEmpty_PQ(pq) && Running_Process == NULL)
     {
         return; // No processes to handle
     }
+
+    print_process(*Running_Process);
+    print_process(*peek_PQ(pq));
 
     if (Running_Process == NULL)
     {
         Running_Process = peek_PQ(pq);
         printf("Initial Running Process PID: %d, remaining time: %d\n", Running_Process->pid, Running_Process->remainingtime);
+        print_process(*Running_Process);
+        print_process(*peek_PQ(pq));
     }
 
     if ((Running_Process->arrivaltime == peek_PQ(pq)->arrivaltime) && (Running_Process->remainingtime > peek_PQ(pq)->remainingtime))
