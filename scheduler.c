@@ -219,10 +219,12 @@ void run(Process *process, int clk) // called inside scheduling algorithms
 {
     if (process->state == 1) // Previously stopped (waiting state)
     {
+        process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime -1;
         log_event("resumed", process, clk);
     } // Log resumed event
     else if (process->remainingtime == process->runtime) // starting for the first time
     {
+        process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime -1;
         log_event("started", process, clk);
         fork_process(process);
         add_to_PCB(process); // Add the process to the PCB table
@@ -267,7 +269,8 @@ void handle_process_completion(Process *process, float *allWTA, int *allWT, int 
     process->finishtime = clk;
     process->TA = process->finishtime - process->arrivaltime;
     process->WTA = (float)process->TA / process->runtime;
-    process->waitingtime = process->TA - process->runtime;
+    process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime;
+    // process->waitingtime = process->TA - process->runtime;
     log_event("finished", process, clk); // Log finished event
 
     // Populate allWTA and allWT arrays using process ID as the index
