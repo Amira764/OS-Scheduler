@@ -343,7 +343,6 @@ void handle_HPF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
         printf("Process ID: %d has completed.\n", Running_Process->id);
         handle_process_completion(Running_Process, allWTA, allWT, clk);
         Running_Process = NULL;
-        // dequeue_PQ(pq);
     }
 }
 
@@ -368,7 +367,6 @@ void handle_SJF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
         printf("Process ID: %d has completed.\n", Running_Process->id);
         handle_process_completion(Running_Process, allWTA, allWT, clk);
         Running_Process = NULL;
-        // dequeue_PQ(pq);
     }
 }
 
@@ -390,7 +388,7 @@ void handle_RR(ProcessQueue *ready_queue, int quatnum, float *allWTA, int *allWT
     // Calculate the quantum for this process (minimum of remaining time and time slice)
     int time_to_run = (current_process->remainingtime < quatnum) ? current_process->remainingtime : quatnum;
 
-    if (current_process->remainingtime > 0)
+    if (current_process->remainingtime >= 0)
     {
         // Run the process for one time slice (1 time step)
         run(current_process, clk); // Call the run function to simulate process execution for 1 time unit
@@ -474,7 +472,7 @@ void handle_MLFQ(float *allWTA, int *allWT, int time_quantum, int clk)
         return; // Nothing to execute
     }
     // Run the selected process
-    if (Running_Process->remainingtime > 0)
+    if (Running_Process->remainingtime >= 0)
     {
         printf("Running process with ID = %d, time_remaining = %d, level = %d\n", Running_Process->id, time_remaining, currentLevel);
         run(Running_Process, clk);
