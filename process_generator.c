@@ -58,6 +58,7 @@ int main(int argc, char *argv[])
         p.priority = atoi(strtok(NULL, "\t")); // Save fourth token: priority
         p.remainingtime = p.runtime;
         p.waitingtime = 0;
+        p.state = -1;
         enqueue_ProcessQueue(&Processes, p);
     }
     print_ProcessQueue(&Processes, Nprocesses);
