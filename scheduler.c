@@ -30,7 +30,7 @@ PriorityQueue pq;
 // Function Prototypes
 void init_Scheduler(int argc, char *argv[]);
 void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list);
-void calculate_performance(float *allWTA, int *allWT, int handled_processes_count, int totalRunTime);
+void calculate_performance(float *allWTA, int *allWT, int handled_processes_count, int total_run_time);
 void log_event(const char *event, Process *process, int clk);
 void run(Process *process, int clk);
 void fork_process(Process *process);
@@ -72,8 +72,8 @@ int main(int argc, char *argv[])
             if (Nprocesses == handled_processes_count)
             {
                 int end_time = getClk();
-                int totalRunTime = end_time - start_time;
-                calculate_performance(allWTA, allWT, handled_processes_count, totalRunTime); // Compute metrics
+                int total_run_time = end_time - start_time;
+                calculate_performance(allWTA, allWT, handled_processes_count, total_run_time); // Compute metrics
                 break;                                                                       // Exit scheduler loop
             }
             // Handle new arrivals from the generator
@@ -297,13 +297,13 @@ void log_event(const char *event, Process *process, int clk)
 }
 
 // Calculate performance metrics
-void calculate_performance(float *allWTA, int *allWT, int handled_processes_count, int totalRunTime)
+void calculate_performance(float *allWTA, int *allWT, int handled_processes_count, int total_run_time)
 {
     float avgWTA = 0;
     float avgWT = 0;
-    float cpuUtil = (active_time * 100.0) / totalRunTime;
+    float cpuUtil = (active_time * 100.0) / (total_run_time-2);
 
-    for (int i = 0; i < handled_processes_count; i++)
+    for (int i = 1; i <= handled_processes_count; i++)
     {
         avgWTA += allWTA[i];
         avgWT += allWT[i];
@@ -341,7 +341,7 @@ void handle_HPF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
     printf("Running Process ID: %d, Remaining Time: %d, Priority: %d\n", Running_Process->id, Running_Process->remainingtime, Running_Process->priority);
     run(Running_Process, clk);
 
-    if (Running_Process->remainingtime <= 0)
+    if (Running_Process->remainingtime == 0)
     {
         printf("Process ID: %d has completed.\n", Running_Process->id);
         handle_process_completion(Running_Process, allWTA, allWT, clk);

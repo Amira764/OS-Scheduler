@@ -18,14 +18,14 @@ MLFQ:
 	make all 
 	./test_generator.out
 	clear
-	./process_generator.out test.txt -sch 4 -q 10
+	./process_generator.out test.txt -sch 4 -q 5
 
 RR: 
 	clear
 	make all 
 	./test_generator.out
 	clear
-	./process_generator.out test.txt -sch 3 -q 10
+	./process_generator.out test.txt -sch 3 -q 5
 
 SJF: 
 	clear
