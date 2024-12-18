@@ -7,6 +7,8 @@
 #include <limits.h>
 #include "Priority_Queue.h"
 
+/* me7tageen nsalla7 el HPF */
+
 struct msgbuff
 {
     long mtype;
@@ -18,7 +20,6 @@ Process *Running_Process = NULL; // Pointer to the currently running process
 int scheduling_algorithm;
 int Nprocesses;              // Total number of processes passed from process generator
 int handled_processes_count; // Total number of actually scheduled processes
-int child_notifications;
 int roundRobinSlice;
 int active_time; // Tracks CPU active time for performance calculation
 FILE *schedulerLog, *perfLog;
@@ -26,10 +27,11 @@ ProcessQueue ready_list; // Ready queue to store processes
 pid_t scheduler_pid;
 Node *levels[NUM_LEVELS]; // Declare and initialize queues for each level
 PriorityQueue pq;
+int clk_flag;            //for clk sync: 0 if clk is correct and 1 if clk is shifted
 
 // Function Prototypes
 void init_Scheduler(int argc, char *argv[]);
-void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list);
+void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list, int clk);
 void calculate_performance(float *allWTA, int *allWT, int handled_processes_count, int total_run_time);
 void log_event(const char *event, Process *process, int clk);
 void run(Process *process, int clk);
@@ -77,7 +79,7 @@ int main(int argc, char *argv[])
                 break;                                                                       // Exit scheduler loop
             }
             // Handle new arrivals from the generator
-            handle_process_reception(qid_generator, &ready_list);
+            handle_process_reception(qid_generator, &ready_list, currentClk);
 
             // Select and execute the appropriate scheduling algorithm
             switch (scheduling_algorithm)
@@ -122,7 +124,6 @@ void init_Scheduler(int argc, char *argv[])
     Nprocesses = atoi(argv[2]);
     roundRobinSlice = (argc > 3) ? atoi(argv[3]) : 0; // Time slice for RR if provided
     handled_processes_count = 0;
-    child_notifications = 0;
     active_time = 0;
 
     // Open log files
@@ -157,12 +158,15 @@ void init_Scheduler(int argc, char *argv[])
 }
 
 // Receive new processes from the process generator
-void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list)
+void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list, int clk)
 {
     // add switch case for ready_list per each algorithm
+    int received = 0;
     struct msgbuff message;
     while (msgrcv(msg_queue_id, &message, sizeof(Process), 0, IPC_NOWAIT) != -1)
     {
+        if(received==0)
+        { clk_flag = (message.mtext.arrivaltime == clk) ? 0 : 1; }
         active_time += message.mtext.runtime;
         switch (scheduling_algorithm)
         {
@@ -186,6 +190,7 @@ void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list)
             fprintf(stderr, "Invalid scheduling algorithm\n");
             exit(EXIT_FAILURE);
         }
+        received++;
     }
 }
 
@@ -219,12 +224,12 @@ void run(Process *process, int clk) // called inside scheduling algorithms
 {
     if (process->state == 1) // Previously stopped (waiting state)
     {
-        process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime -1;
+        process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime ;
         log_event("resumed", process, clk);
     } // Log resumed event
     else if (process->remainingtime == process->runtime) // starting for the first time
     {
-        process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime -1;
+        process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime ;
         log_event("started", process, clk);
         fork_process(process);
         add_to_PCB(process); // Add the process to the PCB table
@@ -284,15 +289,16 @@ void handle_process_completion(Process *process, float *allWTA, int *allWT, int 
 // Log an event with relevant details
 void log_event(const char *event, Process *process, int clk)
 {
+    clk -= clk_flag;
     if (strcmp(event, "started") == 0 || strcmp(event, "resumed") == 0 || strcmp(event, "stopped") == 0)
     {
         fprintf(schedulerLog, "At time %d process %d %s arr %d total %d remain %d wait %d\n",
-                clk - 1, process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime);
+                clk , process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime-clk_flag);
     }
     else if (strcmp(event, "finished") == 0)
     {
         fprintf(schedulerLog, "At time %d process %d %s arr %d total %d remain %d wait %d TA %d WTA %.2f\n",
-                clk - 1, process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime, process->TA, process->WTA);
+                clk , process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime, process->TA, process->WTA);
     }
 }
 
@@ -373,7 +379,6 @@ void handle_SJF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////RR//////////////////////////////////////////////////////
 void handle_RR(ProcessQueue *ready_queue, int quatnum, float *allWTA, int *allWT, int clk)
 {
     // Static variable to count the quantum time
@@ -422,7 +427,6 @@ void handle_RR(ProcessQueue *ready_queue, int quatnum, float *allWTA, int *allWT
     }
 }
 
-/////////////////////////////////////////////// MLFQ ///////////////////////////////////////////////////////////////////////////
 // Initialize all levels to empty linked lists
 void init_MLFQ()
 {
@@ -546,4 +550,4 @@ void redistributeProcessesByPriority()
 
     levels[10] = dummy_level10; // Assign updated level 10
 }
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
