@@ -56,6 +56,7 @@ int main(int argc, char *argv[])
         p.arrivaltime = atoi(strtok(NULL, "\t")); // Save Second token: arrival time
         p.runtime = atoi(strtok(NULL, "\t")); // Save third token: runtime
         p.priority = atoi(strtok(NULL, "\t")); // Save fourth token: priority
+        p.mem_size = atoi(strtok(NULL, "\t")); // Save fifth token: memory
         p.remainingtime = p.runtime;
         p.waitingtime = 0;
         p.state = -1;

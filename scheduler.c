@@ -6,6 +6,7 @@
 #include "LinkedList.h"
 #include <limits.h>
 #include "Priority_Queue.h"
+#include "Buddy.h"
 
 /* me7tageen nsalla7 el HPF */
 
@@ -22,10 +23,11 @@ int Nprocesses;              // Total number of processes passed from process ge
 int handled_processes_count; // Total number of actually scheduled processes
 int roundRobinSlice;
 int active_time; // Tracks CPU active time for performance calculation
-FILE *schedulerLog, *perfLog;
-ProcessQueue ready_list; // Ready queue to store processes
+FILE *schedulerLog, *perfLog, *MemFile;
+ProcessQueue ready_list, waiting_queue; // Ready queue to store processes
 pid_t scheduler_pid;
 Node *levels[NUM_LEVELS]; // Declare and initialize queues for each level
+Mem_Block *root_buddy;
 PriorityQueue pq;
 int clk_flag;            //for clk sync: 0 if clk is correct and 1 if clk is shifted
 
@@ -34,6 +36,7 @@ void init_Scheduler(int argc, char *argv[]);
 void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list, int clk);
 void calculate_performance(float *allWTA, int *allWT, int handled_processes_count, int total_run_time);
 void log_event(const char *event, Process *process, int clk);
+void log_memory_event(const char *event, Process *process, int clk);
 void run(Process *process, int clk);
 void fork_process(Process *process);
 void handle_process_stop(Process *process, int clk);
@@ -44,9 +47,12 @@ void handle_RR(ProcessQueue *ready_queue, int quatnum, float *allWTA, int *allWT
 void handle_MLFQ(float *allWTA, int *allWT, int time_quantum, int clk);
 void init_MLFQ();
 void redistributeProcessesByPriority();
+void insert_process(Process process);
 
 int main(int argc, char *argv[])
 {
+    printf("ana wselt el sched\n");
+    root_buddy = createMemBlock(1024, 0, -1, NULL);
     scheduler_pid = getpid();
     initClk();
 
@@ -110,6 +116,7 @@ int main(int argc, char *argv[])
     free(allWT);
     fclose(schedulerLog);
     fclose(perfLog);
+    fclose(MemFile);
     msgctl(qid_generator, IPC_RMID, NULL);
     free_PCB();              // Free dynamically allocated PCB table
     kill(getppid(), SIGINT); // check this for el tarteeb
@@ -129,13 +136,16 @@ void init_Scheduler(int argc, char *argv[])
     // Open log files
     schedulerLog = fopen("Scheduler.log", "w");
     perfLog = fopen("Scheduler.perf", "w");
-    if (!schedulerLog || !perfLog)
+    MemFile = fopen("memory.log" , "w");
+    if (!schedulerLog || !perfLog || !MemFile)
     {
         fprintf(stderr, "Failed to open log files\n");
         exit(EXIT_FAILURE);
     }
     fprintf(schedulerLog, "#AT time x process y state arr w total z remain y wait k\n");
+    fprintf(MemFile, "#AT time x allocated y bytes for process z from i to j k\n");
 
+    init_ProcessQueue(&waiting_queue, Nprocesses);
     // Intializing the appropraite DS for the scheduling
     switch (scheduling_algorithm)
     {
@@ -157,43 +167,54 @@ void init_Scheduler(int argc, char *argv[])
     }
 }
 
+void insert_process(Process process)
+{
+    switch (scheduling_algorithm)
+    {
+    case 1:
+        enqueue_PQ(&pq, process, false);
+        break;
+    case 2:
+        enqueue_PQ(&pq, process, true);
+        break;
+    case 3:
+        enqueue_ProcessQueue(&ready_list, process); // Add to ready queue
+        break;
+    case 4:
+        int priority_level = process.priority;
+        if (priority_level >= 0 && priority_level < NUM_LEVELS)
+        {
+            enqueue_linkedlist(&levels[priority_level], process);
+        }
+        break;
+    default:
+        fprintf(stderr, "Invalid scheduling algorithm\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
 // Receive new processes from the process generator
 void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list, int clk)
 {
     // add switch case for ready_list per each algorithm
-    int received = 0;
+    bool received = 0;
     struct msgbuff message;
     while (msgrcv(msg_queue_id, &message, sizeof(Process), 0, IPC_NOWAIT) != -1)
     {
-        if(received==0)
+        if(received == 0)
         { clk_flag = (message.mtext.arrivaltime == clk) ? 0 : 1; }
         active_time += message.mtext.runtime;
-        switch (scheduling_algorithm)
-        {
-        case 1:
-            enqueue_PQ(&pq, message.mtext, false);
-            break;
-        case 2:
-            enqueue_PQ(&pq, message.mtext, true);
-            break;
-        case 3:
-            enqueue_ProcessQueue(ready_list, message.mtext); // Add to ready queue
-            break;
-        case 4:
-            int priority_level = message.mtext.priority;
-            if (priority_level >= 0 && priority_level < NUM_LEVELS)
-            {
-                enqueue_linkedlist(&levels[priority_level], message.mtext);
-            }
-            break;
-        default:
-            fprintf(stderr, "Invalid scheduling algorithm\n");
-            exit(EXIT_FAILURE);
-        }
-        received++;
+        //check if process will enter waiting or ready list
+        Mem_Block * availableBlock = findAvailableBlock(root_buddy,message.mtext.mem_size);
+        if(availableBlock)
+        { insert_process(message.mtext); }
+        else
+        { enqueue_ProcessQueue(&waiting_queue, message.mtext); }
+        received = 1;
     }
 }
 
+// Actually Fork Process and assign PID
 void fork_process(Process *process)
 {
     if (getpid() == scheduler_pid) // only scheduler can fork new processes
@@ -229,10 +250,15 @@ void run(Process *process, int clk) // called inside scheduling algorithms
     } // Log resumed event
     else if (process->remainingtime == process->runtime) // starting for the first time
     {
-        process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime ;
-        log_event("started", process, clk);
-        fork_process(process);
-        add_to_PCB(process); // Add the process to the PCB table
+        Mem_Block * allocated = allocateBlock(root_buddy, process);
+        if(allocated)
+        {
+            process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime ;
+            log_event("started", process, clk);
+            log_memory_event("allocated", process, clk);
+            fork_process(process);
+            add_to_PCB(process); // Add the process to the PCB table
+        }
     } // Log started event
     process->state = 0;
     kill(process->pid, SIGILL);
@@ -275,14 +301,26 @@ void handle_process_completion(Process *process, float *allWTA, int *allWT, int 
     process->TA = process->finishtime - process->arrivaltime;
     process->WTA = (float)process->TA / process->runtime;
     process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime - clk_flag;
+    freeBlock(root_buddy, process->id);
     log_event("finished", process, clk); // Log finished event
-
+    log_memory_event("freed", process, clk);
     // Populate allWTA and allWT arrays using process ID as the index
     allWTA[process->id -1] = process->WTA;
     allWT[process->id -1] = process->waitingtime;
     remove_from_PCB(process->pid); // Remove from PCB table
     handled_processes_count++;
     Running_Process = NULL;
+
+    Process * can_run = peek_ProcessQueue(&waiting_queue);
+    if(can_run)
+    {
+        Mem_Block * availableBlock = findAvailableBlock(root_buddy,can_run->mem_size);
+        if(availableBlock)
+        { 
+            can_run = dequeue_ProcessQueue(&waiting_queue);
+            insert_process(*can_run); 
+        }
+    }
 }
 
 // Log an event with relevant details
@@ -299,6 +337,13 @@ void log_event(const char *event, Process *process, int clk)
         fprintf(schedulerLog, "At time %d process %d %s arr %d total %d remain %d wait %d TA %d WTA %.2f\n",
                 clk , process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime, process->TA, process->WTA);
     }
+}
+
+void log_memory_event(const char *event, Process *process, int clk)
+{
+    clk -= clk_flag;
+    fprintf(MemFile, "At time %d %s %d bytes for process %d from %d to %d\n",
+            clk , event, process->mem_size, process->id, process->mem_start, process->mem_end);
 }
 
 // Calculate performance metrics

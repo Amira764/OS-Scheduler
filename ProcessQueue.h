@@ -18,6 +18,9 @@ typedef struct
     int TA;
     float WTA;
     int state; // 0 for running, 1 for waiting
+    int mem_size;
+    int mem_start;
+    int mem_end;
 } Process;
 
 // Dynamically adjustable ProcessQueue structure
