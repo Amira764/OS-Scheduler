@@ -254,7 +254,7 @@ void run(Process *process, int clk) // called inside scheduling algorithms
 {
     if (process->state == 1) // Previously stopped (waiting state)
     {
-        process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime ;
+        process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime -1;
         log_event("resumed", process, clk);
     } // Log resumed event
     else if (process->remainingtime == process->runtime) // starting for the first time
@@ -262,7 +262,7 @@ void run(Process *process, int clk) // called inside scheduling algorithms
         Mem_Block * allocated = allocateBlock(root_buddy, process);
         if(allocated)
         {
-            process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime;
+            process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime -1;
             log_event("started", process, clk);
             log_memory_event("allocated", process, clk);
             fork_process(process);
@@ -307,7 +307,7 @@ void handle_process_completion(Process *process, float *allWTA, int *allWT, int 
     // Process completed
     process->remainingtime = 0;
     process->finishtime = clk;
-    process->TA = process->finishtime - process->arrivaltime;
+    process->TA = process->finishtime - process->arrivaltime-1;
     process->WTA = (float)process->TA / process->runtime;
     // process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime - clk_flag;
     freeBlock(root_buddy, process->id);
@@ -339,12 +339,12 @@ void log_event(const char *event, Process *process, int clk)
     if (strcmp(event, "started") == 0 || strcmp(event, "resumed") == 0 || strcmp(event, "stopped") == 0)
     {
         fprintf(schedulerLog, "At time %d process %d %s arr %d total %d remain %d wait %d\n",
-                clk , process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime);
+                clk -1, process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime);
     }
     else if (strcmp(event, "finished") == 0)
     {
         fprintf(schedulerLog, "At time %d process %d %s arr %d total %d remain %d wait %d TA %d WTA %.2f\n",
-                clk , process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime, process->TA, process->WTA);
+                clk -1 , process->id, event, process->arrivaltime, process->runtime, process->remainingtime, process->waitingtime, process->TA, process->WTA);
     }
 }
 
@@ -352,7 +352,7 @@ void log_memory_event(const char *event, Process *process, int clk)
 {
     // clk -= clk_flag;
     fprintf(MemFile, "At time %d %s %d bytes for process %d from %d to %d\n",
-            clk , event, process->mem_size, process->id, process->mem_start, process->mem_end);
+            clk-1 , event, process->mem_size, process->id, process->mem_start, process->mem_end);
 }
 
 // Calculate performance metrics
