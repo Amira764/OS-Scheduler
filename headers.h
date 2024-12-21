@@ -17,6 +17,59 @@ typedef short bool;
 #define false 0
 
 #define SHKEY 300
+#define SEMKEY 400
+
+// Semaphore union for initialization
+union Semun {
+    int val;                 // Value for SETVAL
+    struct semid_ds *buf;    // Buffer for IPC_STAT, IPC_SET
+    unsigned short *array;   // Array for GETALL, SETALL
+};
+
+// Create and initialize the semaphore
+int createSemaphore() 
+{
+    int semid = semget(SEMKEY, 1, IPC_CREAT | 0666);
+    if (semid == -1) {
+        perror("Failed to create semaphore");
+        exit(EXIT_FAILURE);
+    }
+
+    // Initialize semaphore to 1 (unlocked state)
+    union Semun semun;
+    semun.val = 1; // Initial value
+    if (semctl(semid, 0, SETVAL, semun) == -1) {
+        perror("Failed to initialize semaphore");
+        exit(EXIT_FAILURE);
+    }
+
+    return semid;
+}
+
+// Wait (P operation)
+void semaphoreWait(int semid) {
+    struct sembuf sem_op;
+    sem_op.sem_num = 0;
+    sem_op.sem_op = -1; // Decrement semaphore value
+    sem_op.sem_flg = 0;
+    if (semop(semid, &sem_op, 1) == -1) {
+        perror("Semaphore wait failed");
+        exit(EXIT_FAILURE);
+    }
+}
+
+// Signal (V operation)
+void semaphoreSignal(int semid) {
+    struct sembuf sem_op;
+    sem_op.sem_num = 0;
+    sem_op.sem_op = 1; // Increment semaphore value
+    sem_op.sem_flg = 0;
+    if (semop(semid, &sem_op, 1) == -1) {
+        perror("Semaphore signal failed");
+        exit(EXIT_FAILURE);
+    }
+}
+
 
 ///==============================
 //don't mess with this variable//

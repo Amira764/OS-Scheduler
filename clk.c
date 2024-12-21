@@ -37,9 +37,18 @@ int main(int argc, char *argv[])
         exit(-1);
     }
     *shmaddr = clk; /* Initialize shared memory */
+
+    // Create semaphore
+    int semid = createSemaphore();
     while (1)
     {
+        // Wait for scheduler to release
+        semaphoreWait(semid);
+
         sleep(1);
         (*shmaddr)++;
+
+        // Signal scheduler
+        semaphoreSignal(semid);
     }
 }

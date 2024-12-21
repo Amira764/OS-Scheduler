@@ -25,7 +25,7 @@ RR:
 	make all 
 	./test_generator.out
 	clear
-	./process_generator.out test_mem.txt -sch 3 -q 5
+	./process_generator.out test_mem.txt -sch 3 -q 2
 
 SJF: 
 	clear
