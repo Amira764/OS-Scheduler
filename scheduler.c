@@ -279,8 +279,8 @@ void handle_process_completion(Process *process, float *allWTA, int *allWT, int 
     log_event("finished", process, clk); // Log finished event
 
     // Populate allWTA and allWT arrays using process ID as the index
-    allWTA[process->id] = process->WTA;
-    allWT[process->id] = process->waitingtime;
+    allWTA[process->id -1] = process->WTA;
+    allWT[process->id -1] = process->waitingtime;
     remove_from_PCB(process->pid); // Remove from PCB table
     handled_processes_count++;
     Running_Process = NULL;
@@ -309,7 +309,7 @@ void calculate_performance(float *allWTA, int *allWT, int handled_processes_coun
     float avgWT = 0;
     float cpuUtil = (active_time * 100.0) / (total_run_time-2);
 
-    for (int i = 1; i <= handled_processes_count; i++)
+    for (int i = 0; i < handled_processes_count; i++)
     {
         avgWTA += allWTA[i];
         avgWT += allWT[i];
@@ -320,6 +320,7 @@ void calculate_performance(float *allWTA, int *allWT, int handled_processes_coun
     fprintf(perfLog, "CPU utilization = %.2f%%\n", cpuUtil);
     fprintf(perfLog, "Avg WTA = %.2f\n", avgWTA);
     fprintf(perfLog, "Avg Waiting Time = %.2f\n", avgWT);
+    printf("clk flag is %d \n", clk_flag);
 }
 
 void handle_HPF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
