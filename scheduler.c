@@ -274,8 +274,7 @@ void handle_process_completion(Process *process, float *allWTA, int *allWT, int 
     process->finishtime = clk;
     process->TA = process->finishtime - process->arrivaltime;
     process->WTA = (float)process->TA / process->runtime;
-    process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime;
-    // process->waitingtime = process->TA - process->runtime;
+    process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime - clk_flag;
     log_event("finished", process, clk); // Log finished event
 
     // Populate allWTA and allWT arrays using process ID as the index
