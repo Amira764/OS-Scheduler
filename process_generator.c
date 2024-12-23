@@ -105,7 +105,9 @@ int main(int argc, char *argv[])
             message.mtext = *process_in_turn;
             msgsnd(qid, &message, sizeof(message.mtext), IPC_NOWAIT);
         }
+        usleep(500); // Add a small sleep to prevent high CPU usage
     }
+
 
     // 7. Clear clock resources
     int status;

@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
     while (1)
     {
         // Wait for clock semaphore
-        semaphoreWait(semid);
+        //semaphoreWait(semid);
 
         currentClk = getClk();
         if (currentClk != prevClk)
@@ -112,9 +112,11 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "Invalid scheduling algorithm\n");
                 exit(EXIT_FAILURE);
             }
-            
             // Signal clock to continue
-            semaphoreSignal(semid);
+            //semaphoreSignal(semid);
+            while(prevClk == getClk()){
+
+            }
             currentClk = getClk();
             prevClk = currentClk;
         }
@@ -205,13 +207,11 @@ void insert_process(Process process)
 // Receive new processes from the process generator
 void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list, int clk)
 {
-    // add switch case for ready_list per each algorithm
-    // bool received = 0;
+
     struct msgbuff message;
     while (msgrcv(msg_queue_id, &message, sizeof(Process), 0, IPC_NOWAIT) != -1)
     {
-        // if(received == 0)
-        // { clk_flag = (message.mtext.arrivaltime == clk) ? 0 : 1; }
+        printf("%d" , getClk());
         active_time += message.mtext.runtime;
         //check if process will enter waiting or ready list
         Mem_Block * availableBlock = findAvailableBlock(root_buddy,message.mtext.mem_size);
@@ -219,7 +219,6 @@ void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list, int cl
         { insert_process(message.mtext); }
         else
         { enqueue_ProcessQueue(&waiting_queue, message.mtext); }
-        // received = 1;
     }
 }
 
@@ -307,7 +306,7 @@ void handle_process_completion(Process *process, float *allWTA, int *allWT, int 
     // Process completed
     process->remainingtime = 0;
     process->finishtime = clk;
-    process->TA = process->finishtime - process->arrivaltime-1;
+    process->TA = process->finishtime - process->arrivaltime -1;
     process->WTA = (float)process->TA / process->runtime;
     // process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime - clk_flag;
     freeBlock(root_buddy, process->id);
@@ -352,7 +351,7 @@ void log_memory_event(const char *event, Process *process, int clk)
 {
     // clk -= clk_flag;
     fprintf(MemFile, "At time %d %s %d bytes for process %d from %d to %d\n",
-            clk-1 , event, process->mem_size, process->id, process->mem_start, process->mem_end);
+            clk -1 , event, process->mem_size, process->id, process->mem_start, process->mem_end);
 }
 
 // Calculate performance metrics
