@@ -24,7 +24,7 @@ RR:
 	clear
 	make all 
 	clear
-	./process_generator.out test.txt -sch 3 -q 1
+	./process_generator.out test.txt -sch 3 -q 5
 
 SJF: 
 	clear

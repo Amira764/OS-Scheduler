@@ -59,9 +59,6 @@ int main(int argc, char *argv[])
     init_Scheduler(argc, argv);
     init_PCB(); // Initialize PCB table
 
-    // Create semaphore
-    int semid = createSemaphore();
-
     // Message queues
     key_t key_id1 = ftok("keyfile", 70);
     int qid_generator = msgget(key_id1, 0666 | IPC_CREAT); // From process generator
@@ -75,8 +72,6 @@ int main(int argc, char *argv[])
     // Main scheduler loop
     while (1)
     {
-        // Wait for clock semaphore
-        //semaphoreWait(semid);
 
         currentClk = getClk();
         if (currentClk != prevClk)
@@ -87,7 +82,6 @@ int main(int argc, char *argv[])
                 int end_time = getClk();
                 int total_run_time = end_time - start_time;
                 calculate_performance(allWTA, allWT, handled_processes_count, total_run_time); // Compute metrics
-                semaphoreSignal(semid); // Release semaphore before exit
                 break;                                                                       // Exit scheduler loop
             }
             // Handle new arrivals from the generator
@@ -112,8 +106,7 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "Invalid scheduling algorithm\n");
                 exit(EXIT_FAILURE);
             }
-            // Signal clock to continue
-            //semaphoreSignal(semid);
+
             while(prevClk == getClk()){
 
             }
@@ -211,7 +204,6 @@ void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list, int cl
     struct msgbuff message;
     while (msgrcv(msg_queue_id, &message, sizeof(Process), 0, IPC_NOWAIT) != -1)
     {
-        printf("%d" , getClk());
         active_time += message.mtext.runtime;
         //check if process will enter waiting or ready list
         Mem_Block * availableBlock = findAvailableBlock(root_buddy,message.mtext.mem_size);
@@ -308,7 +300,6 @@ void handle_process_completion(Process *process, float *allWTA, int *allWT, int 
     process->finishtime = clk;
     process->TA = process->finishtime - process->arrivaltime -1;
     process->WTA = (float)process->TA / process->runtime;
-    // process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime - clk_flag;
     freeBlock(root_buddy, process->id);
     log_event("finished", process, clk); // Log finished event
     log_memory_event("freed", process, clk);
@@ -334,7 +325,6 @@ void handle_process_completion(Process *process, float *allWTA, int *allWT, int 
 // Log an event with relevant details
 void log_event(const char *event, Process *process, int clk)
 {
-    // clk -= clk_flag;
     if (strcmp(event, "started") == 0 || strcmp(event, "resumed") == 0 || strcmp(event, "stopped") == 0)
     {
         fprintf(schedulerLog, "At time %d process %d %s arr %d total %d remain %d wait %d\n",
@@ -349,7 +339,6 @@ void log_event(const char *event, Process *process, int clk)
 
 void log_memory_event(const char *event, Process *process, int clk)
 {
-    // clk -= clk_flag;
     fprintf(MemFile, "At time %d %s %d bytes for process %d from %d to %d\n",
             clk -1 , event, process->mem_size, process->id, process->mem_start, process->mem_end);
 }
@@ -372,7 +361,6 @@ void calculate_performance(float *allWTA, int *allWT, int handled_processes_coun
     fprintf(perfLog, "CPU utilization = %.2f%%\n", cpuUtil);
     fprintf(perfLog, "Avg WTA = %.2f\n", avgWTA);
     fprintf(perfLog, "Avg Waiting Time = %.2f\n", avgWT);
-    // printf("clk flag is %d \n", clk_flag);
 }
 
 void handle_HPF(PriorityQueue *pq, float *allWTA, int *allWT, int clk)
