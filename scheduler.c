@@ -173,6 +173,8 @@ void init_Scheduler(int argc, char *argv[])
 
 void insert_process(Process process)
 {
+
+    Mem_Block * allocated = allocateBlock(root_buddy, &process);
     switch (scheduling_algorithm)
     {
     case 1:
@@ -250,15 +252,11 @@ void run(Process *process, int clk) // called inside scheduling algorithms
     } // Log resumed event
     else if (process->remainingtime == process->runtime) // starting for the first time
     {
-        Mem_Block * allocated = allocateBlock(root_buddy, process);
-        if(allocated)
-        {
-            process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime -1;
-            log_event("started", process, clk);
-            log_memory_event("allocated", process, clk);
-            fork_process(process);
-            add_to_PCB(process); // Add the process to the PCB table
-        }
+        process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime -1;
+        log_event("started", process, clk);
+        log_memory_event("allocated", process, clk);
+        fork_process(process);
+        add_to_PCB(process); // Add the process to the PCB table
     } // Log started event
     process->state = 0;
     kill(process->pid, SIGILL);
