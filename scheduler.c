@@ -47,7 +47,7 @@ void handle_RR(ProcessQueue *ready_queue, int quatnum, float *allWTA, int *allWT
 void handle_MLFQ(float *allWTA, int *allWT, int time_quantum, int clk);
 void init_MLFQ();
 void redistributeProcessesByPriority();
-void insert_process(Process process);
+void insert_process(Process process, int clk);
 
 int main(int argc, char *argv[])
 {
@@ -171,10 +171,10 @@ void init_Scheduler(int argc, char *argv[])
     }
 }
 
-void insert_process(Process process)
+void insert_process(Process process, int clk)
 {
-
     Mem_Block * allocated = allocateBlock(root_buddy, &process);
+    log_memory_event("allocated", &process, clk);
     switch (scheduling_algorithm)
     {
     case 1:
@@ -202,7 +202,6 @@ void insert_process(Process process)
 // Receive new processes from the process generator
 void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list, int clk)
 {
-
     struct msgbuff message;
     while (msgrcv(msg_queue_id, &message, sizeof(Process), 0, IPC_NOWAIT) != -1)
     {
@@ -210,7 +209,7 @@ void handle_process_reception(int msg_queue_id, ProcessQueue *ready_list, int cl
         //check if process will enter waiting or ready list
         Mem_Block * availableBlock = findAvailableBlock(root_buddy,message.mtext.mem_size);
         if(availableBlock)
-        { insert_process(message.mtext); }
+        { insert_process(message.mtext, clk); }
         else
         { enqueue_ProcessQueue(&waiting_queue, message.mtext); }
     }
@@ -254,7 +253,6 @@ void run(Process *process, int clk) // called inside scheduling algorithms
     {
         process->waitingtime = clk - (process->runtime - process->remainingtime) - process->arrivaltime -1;
         log_event("started", process, clk);
-        log_memory_event("allocated", process, clk);
         fork_process(process);
         add_to_PCB(process); // Add the process to the PCB table
     } // Log started event
@@ -315,7 +313,7 @@ void handle_process_completion(Process *process, float *allWTA, int *allWT, int 
         if(availableBlock)
         { 
             can_run = dequeue_ProcessQueue(&waiting_queue);
-            insert_process(*can_run); 
+            insert_process(*can_run, clk); 
         }
     }
 }
