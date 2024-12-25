@@ -294,7 +294,7 @@ void handle_process_completion(Process *process, float *allWTA, int *allWT, int 
     // Process completed
     process->remainingtime = 0;
     process->finishtime = clk;
-    process->TA = process->finishtime - process->arrivaltime -1;
+    process->TA = process->finishtime - process->arrivaltime;
     process->WTA = (float)process->TA / process->runtime;
     freeBlock(root_buddy, process->id);
     log_event("finished", process, clk); // Log finished event
